@@ -27,7 +27,7 @@ def create_embeddings(model_path: str, device: str, batch_size: int, normalize: 
             "local_files_only": True,
         },
         encode_kwargs={
-            # 정규화를 적용
+            # L2 정규화(길이를 1로 맞춤)를 적용
             "normalize_embeddings": normalize,
             # 배치 크기를 적용
             "batch_size": batch_size,

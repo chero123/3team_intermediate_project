@@ -64,7 +64,7 @@ def main() -> None:
         # 다운로드 실행
         download_one(repo_id=repo_id, local_subdir=local_subdir)
 
-    print("\n[ALL DONE] models downloaded into ptemp/models")
+    print("\n[ALL DONE] models downloaded into models")
 
 
 

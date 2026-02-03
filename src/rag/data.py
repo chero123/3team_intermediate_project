@@ -11,20 +11,17 @@ from pypdf import PdfReader
 
 from .types import Chunk, Document, Metadata
 
-# 텍스트 확장자
-SUPPORTED_TEXT_EXTENSIONS = {".txt"}
 # 바이너리 확장자
 SUPPORTED_BINARY_EXTENSIONS = {".pdf", ".hwp", ".docx"}
 
 # CSV 텍스트 컬럼명을 지정
 CSV_TEXT_FIELD = "텍스트"
-# CSV 파일명 컬럼명을 지정
 CSV_FILENAME_FIELD = "파일명"
 
 
 def load_metadata_csv(csv_path: str) -> Dict[str, Metadata]:
     """
-    load_metadata_csv는 CSV 메타데이터를 파일명 기준으로 로드
+    CSV 메타데이터를 파일명 기준으로 로드하는 함수
 
     Args:
         csv_path: CSV 파일 경로
@@ -38,7 +35,9 @@ def load_metadata_csv(csv_path: str) -> Dict[str, Metadata]:
 
     # 결과 딕셔너리를 준비
     metadata_by_name: Dict[str, Metadata] = {}
-    with open(csv_path, "r", encoding="utf-8") as f:
+
+    # CSV 파일을 열 때 나오는 이상한 특수 문자 방지를 위해 utf-8-sig 인코딩 사용
+    with open(csv_path, "r", encoding="utf-8-sig") as f:
         # DictReader를 생성
         reader = csv.DictReader(f)
         for row in reader:
@@ -52,7 +51,7 @@ def load_metadata_csv(csv_path: str) -> Dict[str, Metadata]:
 
 def normalize_metadata(row: Metadata) -> Metadata:
     """
-    normalize_metadata는 CSV 컬럼명을 표준 키로 정규화
+    CSV 컬럼명을 표준 키로 정규화하는 함수
 
     Args:
         row: 원본 메타데이터 행
@@ -74,24 +73,9 @@ def normalize_metadata(row: Metadata) -> Metadata:
         "filename": row.get("파일명") or row.get("filename"),
     }
 
-
-def _read_text_file(path: str) -> str:
-    """
-    _read_text_file는 텍스트 파일을 읽는다.
-
-    Args:
-        path: 파일 경로
-
-    Returns:
-        str: 파일의 텍스트 내용
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
-
-
 def extract_text_from_pdf(path: str) -> str:
     """
-    extract_text_from_pdf는 PDF 텍스트를 추출
+    PDF 텍스트를 추출하는 함수
 
     Args:
         path: PDF 경로
@@ -105,7 +89,7 @@ def extract_text_from_pdf(path: str) -> str:
 
 def _extract_text_with_hwp5txt(path: str) -> Optional[str]:
     """
-    _extract_text_with_hwp5txt는 hwp5txt CLI를 사용해 HWP를 변환
+    hwp5txt CLI를 사용해 HWP를 변환
 
     Args:
         path: HWP 경로
@@ -113,8 +97,9 @@ def _extract_text_with_hwp5txt(path: str) -> Optional[str]:
     Returns:
         Optional[str]: 성공 시 텍스트를 반환
     """
+    # CLI 바이너리가 있으면 그걸 우선 사용하고, 실패하면 None으로 돌려 fallback을 유도
     try:
-        # CLI를 호출
+        # CLI를 호출 (subprocess로 외부 커맨드 실행)
         result = subprocess.run(
             # 커맨드를 지정
             ["hwp5txt", path],
@@ -142,6 +127,7 @@ def extract_text_from_hwp(path: str) -> str:
     Returns:
         str: 추출된 텍스트
     """
+    # CLI(hwp5txt)가 있으면 빠르고 안정적이므로 먼저 시도하고, 없으면 라이브러리로 추출
     # CLI를 우선 시도
     text = _extract_text_with_hwp5txt(path)
     if text is not None:
@@ -152,15 +138,15 @@ def extract_text_from_hwp(path: str) -> str:
 
 def extract_text_from_docx(path: str) -> str:
     """
-    extract_text_from_docx는 DOCX 텍스트를 추출
+    docx 파일에서 텍스트를 추출하는 함수
 
     Args:
-        path: DOCX 경로
+        path: docs 파일 경로
 
     Returns:
         str: 추출된 텍스트
     """
-    # DOCX 문서를 로드
+    # docx 문서를 로드
     doc = DocxDocument(path)
     # 문단 텍스트를 결합
     return "\n".join(p.text for p in doc.paragraphs if p.text)
@@ -168,7 +154,7 @@ def extract_text_from_docx(path: str) -> str:
 
 def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Document]:
     """
-    load_documents는 데이터 디렉토리에서 문서를 로드
+    데이터 디렉토리에서 문서를 로드하는 함수
 
     Args:
         data_dir: 데이터 디렉토리 경로
@@ -194,11 +180,8 @@ def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Docum
             # 메타데이터를 정규화한다
             normalized = normalize_metadata(metadata)
 
-            # 텍스트 파일이면 텍스트 파일 읽기
-            if ext in SUPPORTED_TEXT_EXTENSIONS:
-                text = _read_text_file(path)
             # 바이너리 문서면 SV 텍스트를 확인
-            elif ext in SUPPORTED_BINARY_EXTENSIONS:
+            if ext in SUPPORTED_BINARY_EXTENSIONS:
                 csv_text = metadata.get(CSV_TEXT_FIELD)
                 if csv_text and csv_text.strip():
                     text = csv_text
@@ -208,7 +191,7 @@ def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Docum
                 # HWP라면 HWP를 파싱
                 elif ext == ".hwp":
                     text = extract_text_from_hwp(path)
-                # DOCX라면 DOCX를 파싱
+                # docx라면 docx를 파싱
                 elif ext == ".docx":
                     text = extract_text_from_docx(path)
                 else:
@@ -229,7 +212,7 @@ def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Docum
 
 def simple_chunk(text: str, chunk_size: int, overlap: int) -> List[str]:
     """
-    simple_chunk는 고정 길이 기반 청킹을 수행
+    고정 길이 기반 청킹을 수행
 
     Args:
         text: 입력 텍스트

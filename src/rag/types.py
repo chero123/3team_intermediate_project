@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 # # 메타데이터의 공통 타입을 정의
 Metadata = Dict[str, Any]
 
-
 @dataclass
 class Document:
     """
@@ -23,7 +22,7 @@ class Document:
     id: str
     # 문서 텍스트 저장.
     text: str
-    # 문서 메타데이터 저장
+    # 문서 메타데이터 저장 (field(default_factory=dict)는 기본값을 빈 딕셔너리로 설정)
     metadata: Metadata = field(default_factory=dict)
 
 
@@ -34,7 +33,7 @@ class Chunk:
 
     Args:
         id: 청크 식별자
-        text: 청크 텍스트다
+        text: 청크 텍스트
         metadata: 청크 메타데이터
     """
 
@@ -73,7 +72,6 @@ class RetrievalPlan:
     # 분석 메모 저장
     notes: str = ""
 
-
 @dataclass
 class RetrievalResult:
     """
@@ -84,7 +82,6 @@ class RetrievalResult:
         scores: 유사도 점수 리스트
         plan: 사용된 검색 계획
     """
-
     # 청크 리스트 저장
     chunks: List[Chunk]
     # 점수 리스트 저장
@@ -102,12 +99,10 @@ class ConversationTurn:
         role: 발화자 역할
         content: 발화 내용
     """
-
     # 역할 저장
     role: str
     # 발화 내용 저장
     content: str
-
 
 @dataclass
 class ConversationState:

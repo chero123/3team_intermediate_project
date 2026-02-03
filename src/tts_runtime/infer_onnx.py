@@ -42,7 +42,6 @@ except ModuleNotFoundError:
 
     from text.ko_dictionary import english_dictionary, etc_dictionary
 
-
 # Minimal HParams (torch-free)
 class HParams:
     def __init__(self, **kwargs):
@@ -70,7 +69,6 @@ def get_hparams_from_file(config_path: str) -> HParams:
         data = json.load(f)
 
     return HParams(**data)
-
 
 # Korean text normalize + g2p (torch-free)
 
@@ -122,7 +120,6 @@ def _resolve_bert_max_length(session: ort.InferenceSession, tokenizer: AutoToken
             max_len = model_max
     
         return max_len, False
-
 
     return max_len, True
 
@@ -182,7 +179,6 @@ def normalize_english(text: str) -> str:
     
         return word
 
-
     return re.sub(r"([A-Za-z]+)", fn, text)
 
 def text_normalize(text: str) -> str:
@@ -209,8 +205,6 @@ def text_normalize(text: str) -> str:
     text = text.lower()
 
     return text
-
-
 
 _g2p_kr = None
 
@@ -344,7 +338,6 @@ def g2p_kr(
         
         piece_text = "".join(group)
 
-
         if piece_text == "[UNK]":
             
             phs += ["_"]
@@ -352,7 +345,6 @@ def g2p_kr(
             word2ph += [1]
             # 반복 제어
             continue
-
 
         if piece_text in punctuation:
             
@@ -401,7 +393,6 @@ def g2p_kr(
         
         )
 
-
     return phones, tones, word2ph
 
 def intersperse(lst: List[int], item: int) -> List[int]:
@@ -443,7 +434,6 @@ def split_text_by_punct(text: str) -> List[str]:
 
     return chunks or [text]
 
-
 # BERT ONNX (KR) -> phone-level feature
 # 클래스 정의
 class BertOnnxRunner:
@@ -474,7 +464,6 @@ class BertOnnxRunner:
         input_ids = tokens["input_ids"].astype(np.int64)
         
         attention_mask = tokens["attention_mask"].astype(np.int64)
-
 
         if input_ids.shape[1] != len(word2ph):
             # 예외 발생
@@ -576,7 +565,6 @@ def infer_tts_onnx(
         
         )
 
-
         if getattr(hps.data, "add_blank", False):
             
             phones = intersperse(phones, 0)
@@ -590,7 +578,6 @@ def infer_tts_onnx(
                 word2ph[i] = word2ph[i] * 2
             
             word2ph[0] += 1
-
 
         if getattr(hps.data, "disable_bert", False):
             
@@ -609,7 +596,6 @@ def infer_tts_onnx(
             ja_bert = bert_feat.astype(np.float32)
             
             bert = np.zeros((1024, ja_bert.shape[1]), dtype=np.float32)
-
 
         if bert.shape[1] != len(phones):
             # 예외 발생
