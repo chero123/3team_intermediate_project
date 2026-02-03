@@ -1,0 +1,7 @@
+numpy
+onnxruntime
+soundfile
+transformers
+g2pkk
+jamo
+anyascii
