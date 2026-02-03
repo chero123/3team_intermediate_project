@@ -248,7 +248,7 @@ def simple_chunk(text: str, chunk_size: int, overlap: int) -> List[str]:
 
 def chunk_documents(docs: Iterable[Document], chunk_size: int, overlap: int) -> List[Chunk]:
     """
-    chunk_documents는 문서 리스트를 청크 리스트로 변환
+    문서 리스트를 청크 리스트로 변환하는 함수
 
     Args:
         docs: 문서
@@ -261,7 +261,7 @@ def chunk_documents(docs: Iterable[Document], chunk_size: int, overlap: int) -> 
     all_chunks: List[Chunk] = []
     for doc in docs:
         for i, piece in enumerate(simple_chunk(doc.text, chunk_size, overlap)):
-            # 청크 ID를 만든다
+            # 청크 ID 생성
             chunk_id = f"{doc.id}::chunk_{i}"
             # 메타데이터를 복사
             metadata = dict(doc.metadata)

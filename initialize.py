@@ -12,9 +12,10 @@ RAW_DIR = Path(__file__).resolve().parent
 MODEL_ASSETS_DIR = RAW_DIR / "models"
 
 MODELS = {  # 다운로드할 모델 목록
-    "tri-7b": "trillionlabs/Tri-7B",  # LLM
     "bge-m3-ko": "dragonkue/BGE-m3-ko",  # 임베딩 모델
     "bge-reranker-v2-m3": "BAAI/bge-reranker-v2-m3",  # 리랭커 모델
+    "YanoljaNEXT-EEVE-7B-v2": "YanoljaNEXT/YanoljaNEXT-EEVE-7B-v2",  # LLM
+    "melo_yae": "ahnhs2k/yae_meloTTS",  # TTS 모델 (private repository)
 }
 
 

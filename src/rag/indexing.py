@@ -30,7 +30,7 @@ def _chunk_to_doc(chunk: Chunk) -> LCDocument:
 
 def _doc_to_chunk(doc: LCDocument) -> Chunk:
     """
-    _doc_to_chunk는 LangChain Document를 Chunk로 변환
+    LangChain Document를 Chunk로 변환
 
     Args:
         doc: 입력 문서
