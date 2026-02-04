@@ -5,6 +5,9 @@ import zlib
 import struct
 import olefile
 import re
+import json
+import hashlib
+import unicodedata
 from datetime import datetime
 from typing import List, Literal
 from dataclasses import dataclass
@@ -42,6 +45,55 @@ class Chunk:
     id: str
     text: str
     metadata: dict
+
+
+# ============================================
+# 안전한 파일명 생성 함수
+# ============================================
+
+
+def safe_filename(
+    original_name: str, suffix: str = "_parsed.txt", max_bytes: int = 180
+) -> str:
+    """
+    OS 파일명 길이(바이트) 제한을 피하기 위해:
+    - 원본 이름 정규화
+    - 위험한 문자 제거
+    - UTF-8 바이트 기준으로 자르기
+    - 짧은 해시를 붙여 충돌 방지
+
+    Args:
+        original_name: 원본 파일명 (확장자 제외)
+        suffix: 저장 파일 접미사 (기본값: "_parsed.txt")
+        max_bytes: 최대 바이트 수 (기본값: 180)
+
+    Returns:
+        안전하게 변환된 파일명
+    """
+    name = unicodedata.normalize("NFC", original_name)
+
+    # 확장자 제거 (혹시 .hwp/.pdf가 포함되어 있어도 안전하게)
+    base = re.sub(r"\.(hwp|pdf)$", "", name, flags=re.IGNORECASE)
+
+    # 파일명에 들어가면 곤란한 문자 제거/치환 (윈도우 금지문자 포함)
+    base = re.sub(r"[\/\\\:\*\?\"\<\>\|\n\r\t]+", " ", base)
+    base = re.sub(r"\s+", " ", base).strip()
+
+    # 충돌 방지용 짧은 해시
+    h = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
+
+    # suffix 고려해서 base를 바이트 기준으로 자르기
+    # 최종 파일명: "{base}__{hash}{suffix}"
+    tail = f"__{h}{suffix}"
+    budget = max_bytes - len(tail.encode("utf-8"))
+    if budget < 20:
+        budget = 20
+
+    b = base.encode("utf-8")
+    if len(b) > budget:
+        base = b[:budget].decode("utf-8", errors="ignore").rstrip()
+
+    return f"{base}__{h}{suffix}"
 
 
 # ============================================
@@ -169,9 +221,7 @@ def parse_pdf_with_pdfplumber(file_path: str) -> str:
     try:
         with pdfplumber.open(file_path) as pdf:
             print(f"  총 {len(pdf.pages)}페이지 추출 중... (pdfplumber)")
-            text = " ".join(
-                [p.extract_text() for p in pdf.pages if p.extract_text()]
-            )
+            text = " ".join([p.extract_text() for p in pdf.pages if p.extract_text()])
             if text:
                 result = clean_text(text)
                 print(f"'{file_path}' 파일 파싱 성공!")
@@ -362,6 +412,7 @@ def process_all_files(
     print()
 
     parsed_docs = {}
+    mapping = []  # 원본파일명 ↔ 저장파일명 매핑 (RAG 메타데이터용)
     success_count = 0
     fail_count = 0
     total_chunk_count = 0
@@ -394,11 +445,11 @@ def process_all_files(
             else:
                 parsed_docs[file_name] = content
 
-            # 파일 저장 (옵션)
+            # 파일 저장 (옵션) - safe_filename 적용
             if save_to_file:
                 if enable_chunking:
                     # 청크 파일 저장
-                    output_name = f"{doc_id}_chunked.txt"
+                    output_name = safe_filename(doc_id, suffix="_chunked.txt")
                     output_path = os.path.join(output_dir, output_name)
                     with open(output_path, "w", encoding="utf-8") as f:
                         for chunk in chunks:
@@ -408,11 +459,22 @@ def process_all_files(
                     print(f"저장 완료: {output_path}\n")
                 else:
                     # 파싱 파일 저장
-                    output_name = f"{doc_id}_parsed.txt"
+                    output_name = safe_filename(doc_id, suffix="_parsed.txt")
                     output_path = os.path.join(output_dir, output_name)
                     with open(output_path, "w", encoding="utf-8") as f:
                         f.write(content)
                     print(f"저장 완료: {output_path} ({len(content)}자)\n")
+
+                # 매핑 정보 기록
+                mapping.append(
+                    {
+                        "original_filename": file_name,
+                        "source_path": file_path,
+                        "saved_filename": output_name,
+                        "saved_path": output_path,
+                        "chars": len(content),
+                    }
+                )
 
             success_count += 1
         else:
@@ -428,12 +490,20 @@ def process_all_files(
     if save_to_file:
         print(f"저장 위치: {output_dir}/")
 
+        # 매핑 파일 저장 (원본 ↔ 저장 파일명 추적용)
+        if mapping:
+            mapping_path = os.path.join(output_dir, "parsed_mapping.json")
+            with open(mapping_path, "w", encoding="utf-8") as f:
+                json.dump(mapping, f, ensure_ascii=False, indent=2)
+            print(f"매핑 저장: {mapping_path}")
+
     return parsed_docs
 
 
 # ============================================
 # 메인 실행
 # ============================================
+
 
 def set_pdf_parser(parser: str):
     """PDF 파서를 설정합니다."""

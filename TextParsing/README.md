@@ -214,9 +214,86 @@ chunks = chunk_text(text, doc_id="doc1", chunk_size=1000, overlap=200)
 
 ## 팀원별 파일 비교
 
-| 기능 | jang | kim | seo | an |
-|------|------|-----|-----|-----|
-| HWP 파싱 | O (olefile) | O (hwp5txt + olefile) | X | X |
-| PDF 파싱 | X | O (fitz) | O (pdfplumber) | X |
-| 청킹 | X | X | X | O |
-| 저장 옵션 | O | X | X | X |
+| 기능 | jang | kim | seo | an | park |
+|------|------|-----|-----|-----|------|
+| HWP 파싱 | O (olefile) | O (hwp5txt + olefile) | X | X | O (olefile) |
+| PDF 파싱 | X | O (fitz) | O (pdfplumber) | X | X |
+| 청킹 | X | X | X | O | O (paragraph) |
+| 저장 옵션 | O | X | X | X | O |
+| 해싱 (safe_filename) | X | X | X | X | O (sha1) |
+
+---
+
+## 안전한 파일명 생성 (safe_filename)
+
+파일명이 길거나 OS/인코딩 차이로 충돌이 발생하는 것을 방지합니다.
+
+### 문제 상황
+
+```
+원본: 수협중앙회_강릉어선안전조업국 상황관제시스템 구축.hwp
+     ↓ UTF-8 인코딩 시 바이트 수 초과 또는 특수문자 문제
+OSError: 파일명이 너무 길거나 잘못된 문자 포함
+```
+
+### 해결 방식
+
+```python
+from text_parsing import safe_filename
+
+# 원본 파일명 → 안전한 파일명 변환
+safe_name = safe_filename("수협중앙회_강릉어선안전조업국 상황관제시스템 구축", suffix="_parsed.txt")
+# 결과: "수협중앙회_강릉어선안전조업국 상황관__a1b2c3d4e5_parsed.txt"
+```
+
+### 동작 원리
+
+| 단계 | 처리 내용 |
+|------|----------|
+| 1. 정규화 | `unicodedata.normalize("NFC")` |
+| 2. 위험 문자 제거 | 윈도우 금지문자 (`<>:"/\|?*`) 제거 |
+| 3. 바이트 제한 | UTF-8 기준 180바이트 이내로 축약 |
+| 4. 해시 추가 | SHA1 해시 10자리로 충돌 방지 |
+
+### 매핑 파일 (parsed_mapping.json)
+
+`process_all_files()` 실행 시 자동 생성됩니다.
+
+```json
+[
+  {
+    "original_filename": "수협중앙회_강릉어선안전조업국 상황관제시스템 구축.hwp",
+    "source_path": "data/original_data/수협중앙회_...",
+    "saved_filename": "수협중앙회_강릉어선안전조업국 상황관__a1b2c3d4e5_parsed.txt",
+    "saved_path": "data/parsing_data/...",
+    "chars": 12345
+  }
+]
+```
+
+### RAG에서 활용
+
+```python
+import json
+
+# 매핑 파일 로드
+with open("data/parsing_data/parsed_mapping.json") as f:
+    mapping = json.load(f)
+
+# 청킹 시 원본 파일명을 source로 사용
+for item in mapping:
+    with open(item["saved_path"], encoding="utf-8") as f:
+        text = f.read()
+
+    chunks = chunk_text(text, metadata={
+        "source": item["original_filename"],  # 원본 파일명
+        "chars": item["chars"]
+    })
+```
+
+검색 결과 출력 시:
+```
+Q: "어선안전 관련 내용 알려줘"
+A: [출처: 수협중앙회_강릉어선안전조업국 상황관제시스템 구축.hwp]
+         ↑ 해시 파일명이 아닌 원본 파일명 표시
+```
