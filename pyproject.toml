@@ -39,7 +39,7 @@ dependencies = [
   "vllm>=0.6.4",
   "six",
   "python-mecab-ko",
-  "openai",
+  "openai>=1.15.0",
 ]
 
 [tool.setuptools]

@@ -42,8 +42,12 @@ class RAGConfig:
     llm_quantization: str = "bitsandbytes"
     # LLM 제공자 선택 (vllm | openai)
     llm_provider: str = "vllm"
+
+
     # OpenAI 모델 이름
-    openai_model: str = "gpt-4.1"
+    openai_model: str = "gpt-5-mini"
+    # OpenAI Gpt-5 계열용 맥스 토큰 설정
+    openai_gpt5_max_tokens: int = 800
 
     # 임베딩 배치 크기 설정
     embedding_batch_size: int = 32

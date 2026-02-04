@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-# 토크나이저 로딩은 vLLM 내부에 위임하고, 여기서는 최소 설정만 유지한다.
-# vLLM은 로컬 LLM 실행용, OpenAI SDK는 클라우드 LLM 실행용으로 분리한다.
 from vllm import LLM as VLLMEngine
 from vllm import SamplingParams
 
@@ -67,47 +65,6 @@ class VLLMLLM(LLM):
         if not outputs:
             return ""
         return outputs[0].outputs[0].text
-
-
-class OpenAILLM(LLM):
-    """
-    OpenAILLM은 OpenAI API를 사용해 텍스트를 생성한다.
-
-    Args:
-        model: OpenAI 모델 이름
-        api_key: OpenAI API 키 (없으면 환경변수 사용)
-    """
-
-    def __init__(self, model: str, api_key: str | None = None) -> None:
-        # OpenAI SDK는 환경변수(OPENAI_API_KEY) 또는 명시 키를 사용한다.
-        try:
-            from openai import OpenAI
-        except Exception as exc:  # pragma: no cover - 환경 의존
-            raise RuntimeError("OpenAI SDK is not installed. Install 'openai'.") from exc
-        self.client = OpenAI(api_key=api_key)
-        self.model = model
-
-    def generate(self, prompt: str, max_tokens: int, temperature: float) -> str:
-        # Responses API를 사용해 단일 텍스트 응답을 생성한다.
-        resp = self.client.responses.create(
-            model=self.model,
-            input=prompt,
-            max_output_tokens=max_tokens,
-            temperature=temperature,
-        )
-        # SDK 헬퍼가 있으면 사용하고, 없으면 출력 구조에서 텍스트를 찾는다.
-        if hasattr(resp, "output_text") and resp.output_text:
-            return resp.output_text
-        if getattr(resp, "output", None):
-            for item in resp.output:
-                content = getattr(item, "content", None)
-                if not content:
-                    continue
-                for block in content:
-                    text = getattr(block, "text", None)
-                    if text:
-                        return text
-        return ""
 
 
 def build_prompt(question: str, context_chunks: List[Chunk]) -> str:

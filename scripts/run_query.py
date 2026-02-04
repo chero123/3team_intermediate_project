@@ -135,7 +135,7 @@ def _apply_fade(audio: np.ndarray, sr: int, fade_ms: int = 10) -> np.ndarray:
     fade_out = np.linspace(1.0, 0.0, fade_len, dtype=np.float32)
     # astype(copy=False)는 필요할 때만 형변환하며, 불필요한 복사를 피한다.
     audio = audio.astype(np.float32, copy=False)
-    # 시작/끝 구간에 곱셈으로 완만한 0→1, 1→0 변화를 만들어 클릭을 줄인다.
+    # 시작/끝 구간에 곱셈으로 완만한 0->1, 1->0 변화를 만들어 클릭을 줄인다.
     audio[:fade_len] *= fade_in
     audio[-fade_len:] *= fade_out
     return audio
