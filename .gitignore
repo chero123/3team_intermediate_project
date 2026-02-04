@@ -1,0 +1,15 @@
+# virtual env
+.venv/
+
+# python cache
+__pycache__/
+*.pyc
+
+# data (원본/결과물)
+data/
+data_parsed/
+
+# env
+.env
+
+*.csv
