@@ -455,3 +455,9 @@ language_tone_start_map = {
     "DE": num_zh_tones + num_ja_tones + num_en_tones + num_zh_tones + num_kr_tones + num_fr_tones + num_es_tones,
     "RU": num_zh_tones + num_ja_tones + num_en_tones + num_zh_tones + num_kr_tones + num_fr_tones + num_es_tones
 }
+"""
+TTS 심볼 테이블
+
+역할:
+- 모델 입력에 필요한 심볼/언어 매핑 정의
+"""

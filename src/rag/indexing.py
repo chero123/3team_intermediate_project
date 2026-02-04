@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+"""
+FAISS 인덱싱 및 상태 관리 모듈
+
+섹션 구성:
+- 상태/통계 데이터 구조
+- 벡터 스토어 래퍼
+- 인덱서(인덱싱 파이프라인)
+"""
+
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone

@@ -260,3 +260,6 @@ def chunk_documents(docs: Iterable[Document], chunk_size: int, overlap: int) -> 
             # 청크를 추가
             all_chunks.append(Chunk(id=chunk_id, text=piece, metadata=metadata))
     return all_chunks
+"""
+백업용 파서/청킹 스크립트 (실행 전용 참고본)
+"""

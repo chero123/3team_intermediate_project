@@ -148,7 +148,7 @@ def extract_response_text(resp: Any) -> str:
 
     return ""
 
-
+# Prompt Builders
 def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
     """
     질문과 컨텍스트 청크로 최종 프롬프트를 구성한다.
@@ -160,13 +160,13 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
     Returns:
         str: 모델 입력 프롬프트
     """
-    # 청크를 Source 태그로 묶고 메타데이터도 함께 노출한다.
+    # 청크를 출처 태그로 묶고 메타데이터도 함께 노출한다.
     context_blocks = []
     for i, chunk in enumerate(context_chunks):
         meta = chunk.metadata or {}
         meta_lines = [f"{k}: {v}" for k, v in meta.items() if v is not None]
         meta_text = "\n".join(meta_lines)
-        block = f"[Source {i + 1}]"
+        block = f"[출처 {i + 1}]"
         if meta_text:
             block += f"\n{meta_text}"
         block += f"\n{chunk.text}"
@@ -187,7 +187,7 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
 {context}
 """.strip()
 
-
+# Answer Generation
 def generate_answer(
     llm: OpenAILLM,
     config: RAGConfig,
@@ -208,14 +208,14 @@ def generate_answer(
     """
     # 질문 + 컨텍스트를 프롬프트로 결합한다.
     prompt = build_prompt(question, context_chunks)
-    # 생성 파라미터는 config 기준으로 전달하며, gpt-5의 추론 속성을 고려해 큰 토큰 상한을 사용한다.
+    # 생성 파라미터는 config 기준으로 전달한다.
     return llm.generate(
         prompt=prompt,
         max_tokens=config.openai_gpt5_max_tokens,
         temperature=config.response_temperature,
     )
 
-
+# Rewrite / Classification
 def rewrite_answer(llm: OpenAILLM, answer: str) -> str:
     """
     최종 답변을 스타일 규칙에 맞게 리라이트한다.
@@ -229,20 +229,22 @@ def rewrite_answer(llm: OpenAILLM, answer: str) -> str:
     """
     # 말투/문장 수/특수문자 제한을 프롬프트로 강제한다.
     prompt = f"""
-너는 문서를 요약하는 게임 캐릭터다.
-살짝 건방진 말투로 간략하게 요약하라.
-요약은 반말로 작성한다.
-반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.
-괄호나 특수문자를 쓰지 말고, 목록이나 헤더는 문장으로 풀어 작성한다.
+너는 원문을 반말 구어체로 rewrite하는 AI 어시스턴트다.
+자연스러운 한국어 반말로 rewrite한다.
+rewrite 시에는 반드시 반말을 사용한다.
+3문장으로 rewrite하고, 각 문장은 마침표로 끝낸다.
+괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
+설명체는 사용하지 않는다.
 내용을 모르면 '무슨 소리인지 모르겠네. 너 날 놀리는 거니?'라고만 말하라.
+rewrite 결과만 출력한다.
 
 원문:
 {answer}
 
-요약:
+rewrite 결과:
 """.strip()
     # 리라이트는 짧게 끝나도록 토큰 상한을 낮게 설정한다.
-    return llm.generate(prompt=prompt, max_tokens=96, temperature=0.2)
+    return llm.generate(prompt=prompt, max_tokens=480, temperature=0.2)
 
 
 def classify_query_type(llm: OpenAILLM, question: str) -> str:

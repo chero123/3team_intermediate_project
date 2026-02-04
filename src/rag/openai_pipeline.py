@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""
+OpenAI RAG 파이프라인 모듈
+
+흐름:
+- analyze_query → retrieve → generate → rewrite
+"""
+
 from typing import Optional, TypedDict
 
 from langgraph.graph import END, START, StateGraph

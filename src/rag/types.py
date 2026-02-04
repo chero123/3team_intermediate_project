@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""
+RAG 공통 타입 정의 모듈
+
+역할:
+- 문서/청크/검색 계획/대화 상태 등 핵심 데이터 구조 정의
+"""
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 

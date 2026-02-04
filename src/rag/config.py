@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""
+RAG 전역 설정 모듈
+
+역할:
+- 인덱싱/검색/생성 파라미터를 한 곳에서 관리
+"""
+
 from dataclasses import dataclass
 
 

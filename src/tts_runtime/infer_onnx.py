@@ -11,6 +11,15 @@ uv run infer_onnx.py \
   --device cpu \
   --out out.wav
 """
+# =====================================================================
+# TTS ONNX Inference Runtime
+#
+# 흐름 요약:
+# - 텍스트 정규화/토큰화
+# - BERT 피처 추출
+# - ONNX 세션으로 음성 합성
+# - 필요 시 wav 저장
+# =====================================================================
 import argparse
 import json
 import re

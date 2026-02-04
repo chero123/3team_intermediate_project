@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""
+임베딩 로더 모듈
+
+역할:
+- HuggingFace 임베딩 모델을 로드해 RAG에 제공
+"""
+
 from langchain_core.embeddings import Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 

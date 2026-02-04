@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""
+문서 로딩/파싱/청킹 모듈
+
+섹션 구성:
+- 메타데이터 로딩/정규화
+- 파서(HWP/PDF/DOCX)
+- 문서 로딩
+- 청킹
+"""
+
 import csv
 import os
 import re
@@ -89,6 +99,7 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
+# Metadata loading/normalization
 def load_metadata_csv(csv_path: str) -> Dict[str, Metadata]:
     """
     CSV 메타데이터를 파일명 기준으로 로드하는 함수
@@ -143,6 +154,7 @@ def normalize_metadata(row: Metadata) -> Metadata:
         "filename": row.get("파일명") or row.get("filename"),
     }
 
+# HWP parsing
 def parse_hwp_all(path: str) -> str:
     """
     HWP 파일에서 BodyText를 파싱해 텍스트를 추출한다.
@@ -223,6 +235,7 @@ def extract_text_from_hwp(path: str) -> str:
     return parse_hwp_all(path)
 
 
+# PDF parsing
 def parse_pdf_with_pdfplumber(path: str) -> str:
     """
     pdfplumber로 PDF 텍스트를 추출한다.
@@ -295,6 +308,7 @@ def extract_text_from_pdf(path: str) -> str:
         return ""
 
 
+# DOCX parsing
 def extract_text_from_docx(path: str) -> str:
     """
     docx 파일에서 텍스트를 추출하는 함수
@@ -311,6 +325,7 @@ def extract_text_from_docx(path: str) -> str:
     return clean_text("\n".join(p.text for p in doc.paragraphs if p.text))
 
 
+# Document loading
 def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Document]:
     """
     데이터 디렉토리에서 문서를 로드하는 함수
@@ -369,6 +384,7 @@ def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Docum
     return documents
 
 
+# Chunking
 def simple_chunk(text: str, chunk_size: int, overlap: int) -> List[str]:
     """
     RecursiveCharacterTextSplitter 기반 청킹을 수행

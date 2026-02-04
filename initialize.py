@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+"""
+모델 초기 다운로드 스크립트
+
+역할:
+- HuggingFace 모델 스냅샷을 로컬에 저장
+- 토크나이저도 함께 캐시
+"""
+
 from pathlib import Path
 
 # HF 모델 다운로드
 from huggingface_hub import snapshot_download
 from transformers import AutoTokenizer
 
-# 현재 파일 위치 설정
+# 경로/모델 목록 설정
 RAW_DIR = Path(__file__).resolve().parent 
 # 모델 저장 디렉토리
 MODEL_ASSETS_DIR = RAW_DIR / "models"

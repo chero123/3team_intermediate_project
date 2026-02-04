@@ -3,6 +3,15 @@ OpenAI LLM 버전 실행 스크립트
 
 uv run scripts/run_query_openai.py --tts --device cuda
 """
+# =====================================================================
+# OpenAI 실행 스크립트
+#
+# 흐름:
+# - 질문 입력
+# - OpenAI RAG 파이프라인 실행
+# - 문장 출력
+# - (옵션) TTS 합성/재생/저장
+# =====================================================================
 from __future__ import annotations
 
 import argparse

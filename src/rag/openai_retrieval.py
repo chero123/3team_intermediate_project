@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""
+OpenAI 전용 검색/분석 흐름 모듈
+
+섹션 구성:
+- 상수/키워드
+- QueryAnalysis + 분석 에이전트
+- 검색 계획(Orchestrator)
+- 검색/리랭킹 구현
+"""
+
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -16,10 +26,12 @@ QUESTION_TYPE_MULTI = "multi"
 QUESTION_TYPE_COMPARE = "compare"
 QUESTION_TYPE_FOLLOWUP = "followup"
 
+# Heuristic keywords for question classification (LLM 분류 폴백)
 COMPARE_KEYWORDS = ["비교", "차이", "서로", "vs", "대비"]
 FOLLOWUP_KEYWORDS = ["그럼", "그렇다면", "또", "추가로", "더", "이어서", "방금", "앞서"]
 
 
+# Query analysis result
 @dataclass
 class QueryAnalysis:
     """
@@ -42,6 +54,7 @@ class QueryAnalysis:
     notes: str = ""
 
 
+# Query analysis agent (LLM 분류 + 휴리스틱 폴백)
 class QueryAnalysisAgent:
     """
     OpenAI 기반 질문 분류 + 휴리스틱 폴백을 수행한다.
@@ -126,6 +139,7 @@ class QueryAnalysisAgent:
         return filters
 
 
+# Retrieval plan builder
 class RetrievalOrchestrator:
     """
     RetrievalOrchestrator는 QueryAnalysis 결과를 RetrievalPlan으로 변환한다.
@@ -151,6 +165,7 @@ class RetrievalOrchestrator:
         )
 
 
+# Retrieval utilities
 def reciprocal_rank_fusion(ranked_lists: List[List[Chunk]], k: int = 60) -> List[Chunk]:
     scores: Dict[str, float] = {}
     chunk_map: Dict[str, Chunk] = {}
@@ -164,6 +179,7 @@ def reciprocal_rank_fusion(ranked_lists: List[List[Chunk]], k: int = 60) -> List
     return [chunk_map[chunk_id] for chunk_id, _ in fused]
 
 
+# Reranker implementations
 class Reranker:
     def rerank(self, query: str, chunks: List[Chunk]) -> List[Chunk]:
         raise NotImplementedError
@@ -184,6 +200,7 @@ class CrossEncoderReranker(Reranker):
         return [chunk for chunk, _ in scored[: self.top_n]]
 
 
+# Retriever (strategy dispatcher)
 class Retriever:
     """
     Retriever는 검색 전략에 따라 검색을 수행한다.
