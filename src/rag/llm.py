@@ -42,6 +42,7 @@ def _coerce_special_token(value: Any) -> Any:
     """
     if isinstance(value, (str, AddedToken)):
         return value
+    # 토큰이 dict로 들어오는 경우(특수 토큰 설정)만 안전하게 AddedToken으로 바꾼다.
     if isinstance(value, dict):
         content = value.get("content") or value.get("token") or value.get("text")
         if content is None:
@@ -61,6 +62,7 @@ def _sanitize_special_tokens_map(raw_map: Dict[str, Any]) -> Dict[str, Any]:
         Dict[str, Any]: 정리된 special_tokens_map
     """
     cleaned: Dict[str, Any] = {}
+    # JSON에 섞인 dict/list 형태를 문자열 토큰으로 정규화한다.
     for key, value in raw_map.items():
         if isinstance(value, list):
             cleaned[key] = [
@@ -86,11 +88,13 @@ def _load_tokenizer_fallback(model_path: str) -> PreTrainedTokenizerFast:
     """
     model_dir = Path(model_path)
     tokenizer_json = model_dir / "tokenizer.json"
+    # tokenizer.json이 없는 경우는 복구 불가하므로 즉시 실패시킨다.
     if not tokenizer_json.exists():
         raise FileNotFoundError(f"tokenizer.json not found: {tokenizer_json}")
 
     tokenizer_obj = Tokenizer.from_file(str(tokenizer_json))
 
+    # special_tokens_map/config를 직접 읽어 최소한의 안전한 설정만 적용한다.
     special_tokens_map_path = model_dir / "special_tokens_map.json"
     special_tokens: Dict[str, Any] = {}
     if special_tokens_map_path.exists():
@@ -113,6 +117,7 @@ def _load_tokenizer_fallback(model_path: str) -> PreTrainedTokenizerFast:
                 else:
                     special_tokens[key] = _coerce_special_token(value)
 
+    # vLLM 호환성을 위해 토크나이저 설정에서 안전한 키만 추린다.
     tokenizer_config_path = model_dir / "tokenizer_config.json"
     safe_config: Dict[str, Any] = {}
     if tokenizer_config_path.exists():
@@ -139,6 +144,7 @@ def load_tokenizer(model_path: str) -> PreTrainedTokenizerFast:
     Returns:
         PreTrainedTokenizerFast: 로드된 토크나이저
     """
+    # slow/fast 토크나이저 로딩을 순차 시도하고, 모두 실패하면 fallback으로 간다.
     try:
         return AutoTokenizer.from_pretrained(
             model_path,
@@ -170,6 +176,7 @@ def ensure_vllm_tokenizer_dir(model_path: str, cache_dir: str) -> str:
         str: vLLM이 사용할 토크나이저 디렉토리 경로
     """
     model_dir = Path(model_path)
+    # vLLM은 일부 토크나이저 파일이 필요하므로 캐시 디렉토리에 복사본을 만든다.
     out_dir = Path(cache_dir) / model_dir.name
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -186,6 +193,7 @@ def ensure_vllm_tokenizer_dir(model_path: str, cache_dir: str) -> str:
         if src.exists():
             shutil.copy2(src, out_dir / filename)
 
+    # vLLM이 인식하지 못하는 tokenizer_class 키는 제거한다.
     tokenizer_config_path = out_dir / "tokenizer_config.json"
     if tokenizer_config_path.exists():
         with open(tokenizer_config_path, "r", encoding="utf-8") as f:
@@ -194,6 +202,7 @@ def ensure_vllm_tokenizer_dir(model_path: str, cache_dir: str) -> str:
         with open(out_dir / "tokenizer_config.json", "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
 
+    # 특수 토큰 맵을 문자열 중심으로 정리해 직렬화 호환성을 높인다.
     special_tokens_map_path = out_dir / "special_tokens_map.json"
     if special_tokens_map_path.exists():
         with open(special_tokens_map_path, "r", encoding="utf-8") as f:
@@ -212,9 +221,6 @@ class VLLMLLM(LLM):
     Args:
         model_path: 모델 경로
         device: 디바이스
-
-    Returns:
-        None
     """
 
     def __init__(
@@ -224,20 +230,25 @@ class VLLMLLM(LLM):
         cache_dir: str = "data/tokenizer_cache",
         quantization: str | None = None,
     ) -> None:
+        # vLLM은 CUDA 전용이므로 CPU 장치 요청은 명시적으로 차단한다.
         if not device.startswith("cuda"):
             raise RuntimeError("vLLM requires CUDA. Set --device cuda.")
+        # 토크나이저와 vLLM용 캐시 디렉토리를 준비한다.
         self.tokenizer = load_tokenizer(model_path)
         tokenizer_dir = ensure_vllm_tokenizer_dir(model_path, cache_dir)
+        # vLLM 엔진 생성 시 모델/토크나이저 경로를 고정한다.
         engine_kwargs: Dict[str, Any] = dict(
             model=model_path,
             tokenizer=tokenizer_dir,
             tokenizer_mode="auto",
         )
         if quantization:
+            # bitsandbytes 등 양자화 설정이 있을 때만 옵션을 추가한다.
             engine_kwargs["quantization"] = quantization
         self.engine = VLLMEngine(**engine_kwargs)
 
     def generate(self, prompt: str, max_tokens: int, temperature: float) -> str:
+        # 샘플링 파라미터는 응답 길이/온도만 노출해 단순하게 유지한다.
         params = SamplingParams(
             max_tokens=max_tokens,
             temperature=temperature,
@@ -259,15 +270,16 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
     Returns:
         str: 프롬프트 문자열
     """
+    # 검색 결과 청크를 Source 라벨로 묶어 모델이 인용 근거를 구분할 수 있게 한다.
     context = "\n\n".join(
         f"[Source {i + 1}]\n{chunk.text}" for i, chunk in enumerate(context_chunks)
     )
     return (
-        "너는 문서를 요약하는 여우 무녀다.\n"
-        "살짝 건방진 말투로 간략하게 요약하라.\n"
-        "설명체를 사용하지 말고 단정적인 문장으로 답하라.\n"
-        "반드시 3문장으로만 답하고, 각 문장은 마침표로 끝내라.\n"
-        "괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 금지한다.\n"
+        "너는 문서를 요약기다.\n"
+        "컨텍스트를 간략하게 요약한다.\n"
+        "설명체를 사용하여 요약한다.\n"
+        "반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.\n"
+        "괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.\n"
         "컨텍스트에 없으면 모른다고만 말하라.\n\n"
         f"질문: {question}\n\n"
         f"컨텍스트:\n{context}\n"
@@ -293,3 +305,28 @@ def generate_answer(llm: LLM, config: RAGConfig, question: str, context_chunks: 
         max_tokens=config.response_max_tokens,
         temperature=config.response_temperature,
     )
+
+
+def rewrite_answer(llm: LLM, answer: str) -> str:
+    """
+    rewrite_answer는 답변을 3문장 요약 형식으로 리라이팅한다.
+
+    Args:
+        llm: LLM 인스턴스
+        answer: 원본 답변
+
+    Returns:
+        str: 리라이팅된 답변
+    """
+    prompt = (
+        "너는 문서를 요약하는 여우 요괴다.\n"
+        "살짝 건방진 말투로 간략하게 요약하라.\n"
+        "반말로 단정적으로 말한다.\n"
+        "반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.\n"
+        "괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.\n"
+        "내용을 모르면 모른다고만 말하라.\n\n"
+        "원문:\n"
+        f"{answer}\n\n"
+        "요약:\n"
+    )
+    return llm.generate(prompt=prompt, max_tokens=140, temperature=0.3)

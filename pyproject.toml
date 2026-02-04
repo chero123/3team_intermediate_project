@@ -37,7 +37,8 @@ dependencies = [
   "anyascii",
   "bitsandbytes",
   "vllm>=0.6.4",
-  "six"
+  "six",
+  "python-mecab-ko",
 ]
 
 [tool.setuptools]

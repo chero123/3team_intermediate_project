@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+# CrossEncoder는 문장쌍 점수를 다시 계산해 검색 결과를 재정렬한다.
 from sentence_transformers import CrossEncoder
 
 from .config import RAGConfig
@@ -15,6 +16,7 @@ QUESTION_TYPE_MULTI = "multi_doc"
 QUESTION_TYPE_COMPARE = "compare"
 QUESTION_TYPE_FOLLOWUP = "follow_up"
 
+# 질문 유형 판별에 쓰는 키워드(휴리스틱) 목록이다.
 COMPARE_KEYWORDS = ["비교", "차이", "서로", "vs", "대비"]
 FOLLOWUP_KEYWORDS = ["그럼", "그렇다면", "또", "추가로", "더", "이어서", "방금", "앞서"]
 
@@ -66,6 +68,7 @@ class QueryAnalysisAgent:
         Returns:
             QueryAnalysis: 분석 결과
         """
+        # 질문 타입과 메타데이터 필터를 먼저 추정한다.
         question_type = self._classify_question(question, state)
         metadata_filter = self._extract_metadata_filters(question)
 
@@ -90,6 +93,7 @@ class QueryAnalysisAgent:
             needs_multi_doc = False
             notes = "single-document request"
 
+        # 메타데이터 필터가 있으면 후보 수를 줄이고 유사도 검색으로 단순화한다.
         if metadata_filter:
             top_k = max(self.config.min_top_k, min(top_k, 6))
             strategy = self.config.similarity_strategy
@@ -115,10 +119,12 @@ class QueryAnalysisAgent:
         Returns:
             str: 질문 유형
         """
+        # 비교/후속/다문서 요청 여부를 휴리스틱으로 분류한다.
         if any(keyword in question for keyword in COMPARE_KEYWORDS):
             return QUESTION_TYPE_COMPARE
         if any(keyword in question for keyword in FOLLOWUP_KEYWORDS):
             return QUESTION_TYPE_FOLLOWUP
+        # 짧은 질문 + 직전 대화가 있으면 후속 질문으로 본다.
         if state and state.last_user_message() and len(question) < 30:
             return QUESTION_TYPE_FOLLOWUP
         if any(token in question for token in ["여러", "모든", "각각", "기관"]):
@@ -137,6 +143,7 @@ class QueryAnalysisAgent:
         """
         filters: Dict[str, str] = {}
 
+        # 발주 기관/프로젝트명 등 메타데이터 필터를 정규식으로 추출한다.
         issuer_match = re.search(
             r"([가-힣A-Za-z0-9\s]+?(공단|연구원|대학교|과학기술원|재단|청|부))",
             question,
@@ -164,6 +171,7 @@ class RetrievalOrchestrator:
 
     def __init__(self, config: RAGConfig) -> None:
         self.config = config
+        # QueryAnalysisAgent가 질문 분류/필터 추출을 담당한다.
         self.analyzer = QueryAnalysisAgent(config)
 
     def plan(self, question: str, state: Optional[ConversationState] = None) -> RetrievalPlan:
@@ -177,6 +185,7 @@ class RetrievalOrchestrator:
         Returns:
             RetrievalPlan: 검색 계획
         """
+        # 분석 결과를 RetrievalPlan으로 변환해 하위 검색 로직에 전달한다.
         analysis = self.analyzer.analyze(question, state)
         return RetrievalPlan(
             query=question,
@@ -199,6 +208,7 @@ def reciprocal_rank_fusion(ranked_lists: List[List[Chunk]], k: int = 60) -> List
     Returns:
         List[Chunk]: 결합된 랭킹
     """
+    # RRF는 여러 랭킹을 합쳐 안정적인 상위 결과를 만든다.
     scores: Dict[str, float] = {}
     chunk_map: Dict[str, Chunk] = {}
 
@@ -207,6 +217,7 @@ def reciprocal_rank_fusion(ranked_lists: List[List[Chunk]], k: int = 60) -> List
             chunk_map[chunk.id] = chunk
             scores[chunk.id] = scores.get(chunk.id, 0.0) + 1.0 / (k + rank)
 
+    # 점수가 큰 순서대로 정렬해 최종 랭킹을 만든다.
     fused = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     return [chunk_map[chunk_id] for chunk_id, _ in fused]
 
@@ -240,6 +251,7 @@ class CrossEncoderReranker(Reranker):
     """
 
     def __init__(self, model_path: str, device: str, top_n: int) -> None:
+        # CrossEncoder는 문장쌍 입력을 받아 relevance 점수를 출력한다.
         self.model = CrossEncoder(model_path, device=device)
         self.top_n = top_n
 
@@ -256,8 +268,10 @@ class CrossEncoderReranker(Reranker):
         """
         if not chunks:
             return []
+        # (질문, 청크) 쌍을 만들어 재랭킹 점수를 계산한다.
         pairs = [[query, chunk.text] for chunk in chunks]
         scores = self.model.predict(pairs)
+        # 점수 내림차순으로 정렬해 상위 top_n만 반환한다.
         scored = list(zip(chunks, scores))
         scored.sort(key=lambda x: x[1], reverse=True)
         return [chunk for chunk, _ in scored[: self.top_n]]
@@ -291,6 +305,7 @@ class Retriever:
         Returns:
             RetrievalResult: 검색 결과
         """
+        # 전략에 따라 RRF/MMR/유사도 검색 중 하나를 선택한다.
         if plan.strategy == self.config.rrf_strategy:
             chunks = self._retrieve_with_rrf(plan)
             scores = None
@@ -304,6 +319,7 @@ class Retriever:
                 metadata_filter=plan.metadata_filter,
             )
 
+        # 리랭커가 있으면 검색 결과를 한 번 더 정렬한다.
         if self.reranker is not None:
             chunks = self.reranker.rerank(plan.query, chunks)[: plan.top_k]
 
@@ -319,6 +335,7 @@ class Retriever:
         Returns:
             List[Chunk]: 검색 결과
         """
+        # RRF는 서로 다른 랭킹(유사도/MMR)을 합쳐 안정성을 높인다.
         sim_chunks, _ = self.store.similarity_search(
             query=plan.query,
             top_k=max(plan.top_k, self.config.mmr_candidate_pool),
@@ -344,6 +361,7 @@ class Retriever:
         Returns:
             List[Chunk]: 검색 결과
         """
+        # MMR은 다양성과 관련성을 함께 고려해 중복을 줄인다.
         return self.store.mmr_search(
             query=plan.query,
             top_k=plan.top_k,

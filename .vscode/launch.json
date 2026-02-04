@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "rag indexing (debug)",
+      "type": "python",
+      "request": "launch",
+      "module": "rag.indexing",
+      "cwd": "${workspaceFolder}/3team_intermediate_project/src",
+      "console": "integratedTerminal",
+      "python": "${workspaceFolder}/3team_intermediate_project/.venv/bin/python"
+    }
+  ]
+}

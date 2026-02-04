@@ -4,12 +4,21 @@
 
 ## 설치 방법
 
+- WSL UV 기준
+
 ```bash
 uv venv --python 3.10
 source .venv/bin/activate
 
 uv sync
 ```
+
+## 실행 순서
+
+1. 가상 환경 생성 후 `uv sync` 및 `pip install -r requirements.txt`
+2. `uv run initialize.py`로 모델 다운로드
+3. `uv run scripts/build_index`로 백터 DB 생성
+4. `uv run scripts/run_query`로 CLI 실행
 
 ## 추후 작업
 
