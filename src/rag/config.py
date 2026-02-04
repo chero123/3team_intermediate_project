@@ -40,6 +40,10 @@ class RAGConfig:
     device: str = "cuda"
     # vLLM 4-bit(bitsandbytes) 양자화 사용
     llm_quantization: str = "bitsandbytes"
+    # LLM 제공자 선택 (vllm | openai)
+    llm_provider: str = "vllm"
+    # OpenAI 모델 이름
+    openai_model: str = "gpt-4.1"
 
     # 임베딩 배치 크기 설정
     embedding_batch_size: int = 32

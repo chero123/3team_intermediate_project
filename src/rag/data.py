@@ -5,6 +5,7 @@ import os
 import subprocess
 from typing import Dict, Iterable, List, Optional
 
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from docx import Document as DocxDocument
 from hwp5 import hwp5txt
 from pypdf import PdfReader
@@ -212,7 +213,7 @@ def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Docum
 
 def simple_chunk(text: str, chunk_size: int, overlap: int) -> List[str]:
     """
-    고정 길이 기반 청킹을 수행
+    RecursiveCharacterTextSplitter 기반 청킹을 수행
 
     Args:
         text: 입력 텍스트
@@ -226,24 +227,13 @@ def simple_chunk(text: str, chunk_size: int, overlap: int) -> List[str]:
     if chunk_size <= 0:
         return []
 
-    # 결과 리스트를 준비
-    chunks: List[str] = []
-    # 시작 위치를 초기화
-    start = 0
-    # 텍스트 끝까지 반복
-    while start < len(text):
-        # 끝 위치를 계산
-        end = min(len(text), start + chunk_size)
-        # 청크를 추출
-        chunk = text[start:end]
-        # 공백만 있는 청크를 제외
-        if chunk.strip():
-            chunks.append(chunk)
-        if end >= len(text):
-            break
-        # 겹침만큼 이동.
-        start = max(0, end - overlap)
-    return chunks
+    # 문장/문단 경계를 우선하고, 부족하면 더 작은 단위로 재귀 분할한다.
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", "□", "。", ".", "!", "?", " ", ""],
+    )
+    return [c for c in splitter.split_text(text) if c.strip()]
 
 
 def chunk_documents(docs: Iterable[Document], chunk_size: int, overlap: int) -> List[Chunk]:

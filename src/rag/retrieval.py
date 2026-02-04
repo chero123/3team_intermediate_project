@@ -9,12 +9,13 @@ from sentence_transformers import CrossEncoder
 
 from .config import RAGConfig
 from .indexing import FaissVectorStore
+from .llm import LLM, classify_query_type
 from .types import Chunk, ConversationState, RetrievalPlan, RetrievalResult
 
-QUESTION_TYPE_SINGLE = "single_doc"
-QUESTION_TYPE_MULTI = "multi_doc"
+QUESTION_TYPE_SINGLE = "single"
+QUESTION_TYPE_MULTI = "multi"
 QUESTION_TYPE_COMPARE = "compare"
-QUESTION_TYPE_FOLLOWUP = "follow_up"
+QUESTION_TYPE_FOLLOWUP = "followup"
 
 # 질문 유형 판별에 쓰는 키워드(휴리스틱) 목록이다.
 COMPARE_KEYWORDS = ["비교", "차이", "서로", "vs", "대비"]
@@ -54,8 +55,9 @@ class QueryAnalysisAgent:
         None
     """
 
-    def __init__(self, config: RAGConfig) -> None:
+    def __init__(self, config: RAGConfig, llm: Optional[LLM] = None) -> None:
         self.config = config
+        self.llm = llm
 
     def analyze(self, question: str, state: Optional[ConversationState] = None) -> QueryAnalysis:
         """
@@ -119,6 +121,11 @@ class QueryAnalysisAgent:
         Returns:
             str: 질문 유형
         """
+        # LLM이 주입되면 우선 분류를 시도하고, 실패 시 휴리스틱으로 폴백한다.
+        if self.llm is not None:
+            label = classify_query_type(self.llm, question)
+            if label:
+                return label
         # 비교/후속/다문서 요청 여부를 휴리스틱으로 분류한다.
         if any(keyword in question for keyword in COMPARE_KEYWORDS):
             return QUESTION_TYPE_COMPARE
@@ -169,10 +176,10 @@ class RetrievalOrchestrator:
         None
     """
 
-    def __init__(self, config: RAGConfig) -> None:
+    def __init__(self, config: RAGConfig, llm: Optional[LLM] = None) -> None:
         self.config = config
         # QueryAnalysisAgent가 질문 분류/필터 추출을 담당한다.
-        self.analyzer = QueryAnalysisAgent(config)
+        self.analyzer = QueryAnalysisAgent(config, llm=llm)
 
     def plan(self, question: str, state: Optional[ConversationState] = None) -> RetrievalPlan:
         """

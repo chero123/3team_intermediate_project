@@ -239,10 +239,10 @@ class Indexer:
             {
                 "id": c.id,
                 "len": len(c.text),
-                "text": c.text[:200],
+                "text": c.text[:400],
                 "metadata": c.metadata,
             }
-            for c in chunks[:5]
+            for c in chunks[:10]
         ]
         # 청크 미리보기는 디버깅/검증 용도로만 사용한다.
         with open(self.config.chunk_preview_path, "w", encoding="utf-8") as f:
