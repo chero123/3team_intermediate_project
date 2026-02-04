@@ -2,30 +2,13 @@ from __future__ import annotations
 
 import csv
 import os
-import re
-import hashlib
-import struct
-import unicodedata
-import zlib
-from typing import Dict, Iterable, List, Optional, Literal
-
-import olefile
+import subprocess
+from typing import Dict, Iterable, List, Optional
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from docx import Document as DocxDocument
+from hwp5 import hwp5txt
 from pypdf import PdfReader
-
-try:
-    import fitz  # PyMuPDF
-except ImportError:
-    print("PyMuPDF 설치 필요: pip install pymupdf")
-    fitz = None
-
-try:
-    import pdfplumber
-except ImportError:
-    print("pdfplumber 설치 필요: pip install pdfplumber")
-    pdfplumber = None
 
 from .types import Chunk, Document, Metadata
 
@@ -35,58 +18,6 @@ SUPPORTED_BINARY_EXTENSIONS = {".pdf", ".hwp", ".docx"}
 # CSV 텍스트 컬럼명을 지정
 CSV_TEXT_FIELD = "텍스트"
 CSV_FILENAME_FIELD = "파일명"
-
-# PDF 파서 선택 (pdfplumber: 품질 우선, fitz: 속도 우선)
-PDF_PARSER: Literal["pdfplumber", "fitz"] = "pdfplumber"
-
-
-def safe_filename(original_name: str, suffix: str = "_parsed.txt", max_bytes: int = 180) -> str:
-    """
-    OS 파일명 길이 제한을 피하기 위해 안전한 파일명을 만든다.
-
-    Args:
-        original_name: 원본 파일명 (확장자 제외)
-        suffix: 저장 파일 접미사
-        max_bytes: 최대 바이트 길이
-
-    Returns:
-        str: 안전하게 변환된 파일명
-    """
-    name = unicodedata.normalize("NFC", original_name)
-    base = re.sub(r"\.(hwp|pdf|docx)$", "", name, flags=re.IGNORECASE)
-    base = re.sub(r"[\/\\\:\*\?\"\<\>\|\n\r\t]+", " ", base)
-    base = re.sub(r"\s+", " ", base).strip()
-    h = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
-    tail = f"__{h}{suffix}"
-    budget = max_bytes - len(tail.encode("utf-8"))
-    if budget < 20:
-        budget = 20
-    b = base.encode("utf-8")
-    if len(b) > budget:
-        base = b[:budget].decode("utf-8", errors="ignore").rstrip()
-    return f"{base}__{h}{suffix}"
-
-
-def clean_text(text: str) -> str:
-    """
-    텍스트 정제: 불필요한 공백 및 깨진 문자를 정리한다.
-
-    Args:
-        text: 원본 텍스트
-
-    Returns:
-        str: 정제된 텍스트
-    """
-    if not text:
-        return ""
-    text = re.sub(
-        r'[^\uAC00-\uD7A3\u2160-\u217Fa-zA-Z0-9\s.,!?():\-\[\]<>~·%/@\'"_=+○●■□▶◆※]',
-        "",
-        text,
-    )
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    text = re.sub(r" {2,}", " ", text)
-    return text.strip()
 
 
 def load_metadata_csv(csv_path: str) -> Dict[str, Metadata]:
@@ -143,76 +74,53 @@ def normalize_metadata(row: Metadata) -> Metadata:
         "filename": row.get("파일명") or row.get("filename"),
     }
 
-def parse_hwp_all(path: str) -> str:
+def extract_text_from_pdf(path: str) -> str:
     """
-    HWP 파일에서 BodyText를 파싱해 텍스트를 추출한다.
+    PDF 텍스트를 추출하는 함수
 
     Args:
-        path: HWP 파일 경로
+        path: PDF 경로
 
     Returns:
         str: 추출된 텍스트
     """
-    if not os.path.exists(path):
-        return ""
+    reader = PdfReader(path)
+    return "\n".join((page.extract_text() or "") for page in reader.pages)
+
+
+def _extract_text_with_hwp5txt(path: str) -> Optional[str]:
+    """
+    hwp5txt CLI를 사용해 HWP를 변환
+
+    Args:
+        path: HWP 경로
+
+    Returns:
+        Optional[str]: 성공 시 텍스트를 반환
+    """
+    # CLI 바이너리가 있으면 그걸 우선 사용하고, 실패하면 None으로 돌려 fallback을 유도
     try:
-        f = olefile.OleFileIO(path)
-        header = f.openstream("FileHeader").read()
-        is_compressed = header[36] & 1
-        texts: List[str] = []
-        for entry in f.listdir():
-            if entry[0] != "BodyText":
-                continue
-            data = f.openstream(entry).read()
-            if is_compressed:
-                try:
-                    data = zlib.decompress(data, -15)
-                except zlib.error:
-                    pass
-            i = 0
-            while i < len(data):
-                if i + 4 > len(data):
-                    break
-                rec_header = struct.unpack_from("<I", data, i)[0]
-                rec_type = rec_header & 0x3FF
-                rec_len = (rec_header >> 20) & 0xFFF
-                if rec_len == 0xFFF:
-                    if i + 8 > len(data):
-                        break
-                    rec_len = struct.unpack_from("<I", data, i + 4)[0]
-                    i += 8
-                else:
-                    i += 4
-                if i + rec_len > len(data):
-                    break
-                if rec_type == 67 and rec_len > 0:
-                    text_data = data[i : i + rec_len]
-                    try:
-                        text = text_data.decode("utf-16le", errors="ignore")
-                        cleaned_chars = []
-                        for char in text:
-                            code = ord(char)
-                            if code >= 32 or char in "\n\r\t":
-                                cleaned_chars.append(char)
-                            elif code in [13, 10]:
-                                cleaned_chars.append("\n")
-                        text = "".join(cleaned_chars).strip()
-                        if text:
-                            texts.append(text)
-                    except UnicodeDecodeError:
-                        pass
-                i += rec_len
-        f.close()
-        if texts:
-            return clean_text("\n".join(texts))
-        return ""
-    except Exception:
-        return ""
+        # CLI를 호출 (subprocess로 외부 커맨드 실행)
+        result = subprocess.run(
+            # 커맨드를 지정
+            ["hwp5txt", path],
+            # 실패 시 예외를 발생
+            check=True,
+            # 출력을 캡처
+            capture_output=True,
+            # 텍스트 모드로 실행
+            text=True,
+        )
+        # stdout을 반환
+        return result.stdout
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        # 실패 시 None을 반환
+        return None
 
 
 def extract_text_from_hwp(path: str) -> str:
     """
-    HWP 텍스트를 추출한다.
+    extract_text_from_hwp는 HWP 텍스트를 추출
 
     Args:
         path: HWP 경로
@@ -220,79 +128,13 @@ def extract_text_from_hwp(path: str) -> str:
     Returns:
         str: 추출된 텍스트
     """
-    return parse_hwp_all(path)
-
-
-def parse_pdf_with_pdfplumber(path: str) -> str:
-    """
-    pdfplumber로 PDF 텍스트를 추출한다.
-
-    Args:
-        path: PDF 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    if pdfplumber is None:
-        return ""
-    try:
-        with pdfplumber.open(path) as pdf:
-            text = " ".join([p.extract_text() for p in pdf.pages if p.extract_text()])
-        return clean_text(text) if text else ""
-    except Exception:
-        return ""
-
-
-def parse_pdf_with_fitz(path: str) -> str:
-    """
-    PyMuPDF(fitz)로 PDF 텍스트를 추출한다.
-
-    Args:
-        path: PDF 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    if fitz is None:
-        return ""
-    try:
-        doc = fitz.open(path)
-        results = []
-        for page in doc:
-            page_text = page.get_text()
-            if page_text.strip():
-                results.append(page_text.strip())
-        doc.close()
-        return clean_text("\n\n".join(results)) if results else ""
-    except Exception:
-        return ""
-
-
-def extract_text_from_pdf(path: str) -> str:
-    """
-    PDF 텍스트를 추출한다 (parser 설정에 따라 선택).
-
-    Args:
-        path: PDF 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    if PDF_PARSER == "pdfplumber":
-        text = parse_pdf_with_pdfplumber(path)
-        if text:
-            return text
-    if PDF_PARSER == "fitz":
-        text = parse_pdf_with_fitz(path)
-        if text:
-            return text
-    # 파서가 없거나 실패하면 pypdf로 fallback
-    try:
-        reader = PdfReader(path)
-        text = "\n".join((page.extract_text() or "") for page in reader.pages)
-        return clean_text(text)
-    except Exception:
-        return ""
+    # CLI(hwp5txt)가 있으면 빠르고 안정적이므로 먼저 시도하고, 없으면 라이브러리로 추출
+    # CLI를 우선 시도
+    text = _extract_text_with_hwp5txt(path)
+    if text is not None:
+        return text
+    # 라이브러리로 변환
+    return hwp5txt.get_text(path)
 
 
 def extract_text_from_docx(path: str) -> str:
@@ -308,7 +150,7 @@ def extract_text_from_docx(path: str) -> str:
     # docx 문서를 로드
     doc = DocxDocument(path)
     # 문단 텍스트를 결합
-    return clean_text("\n".join(p.text for p in doc.paragraphs if p.text))
+    return "\n".join(p.text for p in doc.paragraphs if p.text)
 
 
 def load_documents(data_dir: str, metadata_csv: str | None = None) -> List[Document]:

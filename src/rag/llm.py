@@ -78,20 +78,35 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
     Returns:
         str: 프롬프트 문자열
     """
-    # 검색 결과 청크를 Source 라벨로 묶어 모델이 인용 근거를 구분할 수 있게 한다.
-    context = "\n\n".join(
-        f"[Source {i + 1}]\n{chunk.text}" for i, chunk in enumerate(context_chunks)
-    )
-    return (
-        "너는 문서를 요약기다.\n"
-        "컨텍스트를 간략하게 요약한다.\n"
-        "설명체를 사용하여 요약한다.\n"
-        "반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.\n"
-        "괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.\n"
-        "컨텍스트에 없으면 모른다고만 말하라.\n\n"
-        f"질문: {question}\n\n"
-        f"컨텍스트:\n{context}\n"
-    )
+    # 검색 결과 청크를 Source 라벨로 묶고, 메타데이터도 함께 노출한다.
+    context_blocks = []
+    for i, chunk in enumerate(context_chunks):
+        meta = chunk.metadata or {}
+        meta_lines = [f"{k}: {v}" for k, v in meta.items() if v is not None]
+        meta_text = "\n".join(meta_lines)
+        block = f"[Source {i + 1}]"
+        if meta_text:
+            block += f"\n{meta_text}"
+        block += f"\n{chunk.text}"
+        context_blocks.append(block)
+    context = "\n\n".join(context_blocks)
+    return f"""
+너는 문서 기반 요약 어시스턴트다.
+오직 컨텍스트에 있는 사실만 사용하고 추측하지 않는다.
+질문에 필요한 정보만 골라 간결하게 답한다.
+중복/군더더기 표현을 줄이고 핵심만 남긴다.
+반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.
+모든 문장은 완결된 문장으로 끝낸다. 미완성 단어로 끝내지 않는다.
+요약, 결론 같은 라벨을 붙이지 않는다.
+제안서 문맥이므로 과거형 서술을 피하고 현재형으로 서술한다.
+괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
+컨텍스트에 없으면 모른다고만 말하라.
+
+질문: {question}
+
+컨텍스트:
+{context}
+""".strip()
 
 
 def generate_answer(llm: LLM, config: RAGConfig, question: str, context_chunks: List[Chunk]) -> str:
@@ -126,18 +141,22 @@ def rewrite_answer(llm: LLM, answer: str) -> str:
     Returns:
         str: 리라이팅된 답변
     """
-    prompt = (
-        "너는 문서를 요약하는 여우 요괴다.\n"
-        "살짝 건방진 말투로 간략하게 요약하라.\n"
-        "요약은 반말로 작성한다.\n"
-        "반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.\n"
-        "괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.\n"
-        "내용을 모르면 '무슨 소리인지 모르겠네'라고만 말하라.\n\n"
-        "원문:\n"
-        f"{answer}\n\n"
-        "요약:\n"
-    )
-    return llm.generate(prompt=prompt, max_tokens=140, temperature=0.3)
+    prompt = f"""
+너는 원문을 구어체로 rewrite하는 AI 어시스턴트다.
+자연스러운 한국어 구어체로 rewrite한다.
+rewrite 시에는 반말을 사용한다.
+반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.
+괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
+제안서 문맥에 맞추어 rewrite한다.
+설명체는 사용하지 않는다.
+내용을 모르면 '무슨 소리인지 모르겠네. 너 날 놀리는 거니?'라고만 말하라.
+
+원문:
+{answer}
+
+요약:
+""".strip()
+    return llm.generate(prompt=prompt, max_tokens=220, temperature=0.6)
 
 
 def classify_query_type(llm: LLM, question: str) -> str:
@@ -151,12 +170,13 @@ def classify_query_type(llm: LLM, question: str) -> str:
     Returns:
         str: 분류 라벨
     """
-    prompt = (
-        "다음 질문을 유형으로 분류하라. 출력은 라벨만 한 단어로 답한다.\n"
-        "라벨은 single, multi, compare, followup 중 하나다.\n\n"
-        f"질문: {question}\n"
-        "라벨:"
-    )
+    prompt = f"""
+다음 질문을 유형으로 분류하라. 출력은 라벨만 한 단어로 답한다.
+라벨은 single, multi, compare, followup 중 하나다.
+
+질문: {question}
+라벨:
+""".strip()
     label = llm.generate(prompt=prompt, max_tokens=8, temperature=0.0).strip().lower()
     for key in ("single", "multi", "compare", "followup"):
         if key in label:

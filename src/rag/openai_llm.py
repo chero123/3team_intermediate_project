@@ -160,22 +160,32 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
     Returns:
         str: 모델 입력 프롬프트
     """
-    # 청크를 Source 태그로 묶어 하나의 컨텍스트 문자열로 만든다.
-    context = "\n\n".join(
-        f"[Source {i + 1}] {chunk.text}"
-        for i, chunk in enumerate(context_chunks)
-    )
+    # 청크를 Source 태그로 묶고 메타데이터도 함께 노출한다.
+    context_blocks = []
+    for i, chunk in enumerate(context_chunks):
+        meta = chunk.metadata or {}
+        meta_lines = [f"{k}: {v}" for k, v in meta.items() if v is not None]
+        meta_text = "\n".join(meta_lines)
+        block = f"[Source {i + 1}]"
+        if meta_text:
+            block += f"\n{meta_text}"
+        block += f"\n{chunk.text}"
+        context_blocks.append(block)
+    context = "\n\n".join(context_blocks)
     # 출력 형식(3문장/마침표/특수문자 제한)을 프롬프트로 강제한다.
-    return (
-        "너는 문서를 요약기다.\n"
-        "컨텍스트를 간략하게 요약한다.\n"
-        "설명체를 사용하여 요약한다.\n"
-        "반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.\n"
-        "괄호나 특수문자를 쓰지 말고, 목록이나 헤더는 문장으로 풀어 작성한다.\n"
-        "컨텍스트에 없으면 모른다고만 말하라.\n"
-        f"질문: {question}\n\n"
-        f"컨텍스트:\n{context}\n"
-    )
+    return f"""
+너는 문서를 요약기다.
+컨텍스트를 간략하게 요약한다.
+설명체를 사용하여 요약한다.
+반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.
+괄호나 특수문자를 쓰지 말고, 목록이나 헤더는 문장으로 풀어 작성한다.
+컨텍스트에 없으면 모른다고만 말하라.
+
+질문: {question}
+
+컨텍스트:
+{context}
+""".strip()
 
 
 def generate_answer(
@@ -218,17 +228,19 @@ def rewrite_answer(llm: OpenAILLM, answer: str) -> str:
         str: 리라이트된 답변
     """
     # 말투/문장 수/특수문자 제한을 프롬프트로 강제한다.
-    prompt = (
-        "너는 문서를 요약하는 여우 요괴다.\n"
-        "살짝 건방진 말투로 간략하게 요약하라.\n"
-        "요약은 반말로 작성한다.\n"
-        "반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.\n"
-        "괄호나 특수문자를 쓰지 말고, 목록이나 헤더는 문장으로 풀어 작성한다.\n"
-        "내용을 모르면 '무슨 소리인지 모르겠네'라고만 말하라.\n"
-        "원문:\n"
-        f"{answer}\n"
-        "요약:\n"
-    )
+    prompt = f"""
+너는 문서를 요약하는 게임 캐릭터다.
+살짝 건방진 말투로 간략하게 요약하라.
+요약은 반말로 작성한다.
+반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.
+괄호나 특수문자를 쓰지 말고, 목록이나 헤더는 문장으로 풀어 작성한다.
+내용을 모르면 '무슨 소리인지 모르겠네. 너 날 놀리는 거니?'라고만 말하라.
+
+원문:
+{answer}
+
+요약:
+""".strip()
     # 리라이트는 짧게 끝나도록 토큰 상한을 낮게 설정한다.
     return llm.generate(prompt=prompt, max_tokens=96, temperature=0.2)
 
@@ -245,12 +257,13 @@ def classify_query_type(llm: OpenAILLM, question: str) -> str:
         str: single | multi | compare | followup 중 하나
     """
     # 라벨만 출력하도록 프롬프트를 단순화한다.
-    prompt = (
-        "다음 질문을 유형으로 분류하라. 출력은 라벨만 한 단어로 답한다.\n"
-        "라벨은 single, multi, compare, followup 중 하나다.\n"
-        f"질문: {question}\n"
-        "라벨:"
-    )
+    prompt = f"""
+다음 질문을 유형으로 분류하라. 출력은 라벨만 한 단어로 답한다.
+라벨은 single, multi, compare, followup 중 하나다.
+
+질문: {question}
+라벨:
+""".strip()
     # 온도 0으로 결정론적 분류를 유도한다.
     label = llm.generate(prompt=prompt, max_tokens=32, temperature=0.0).lower()
 

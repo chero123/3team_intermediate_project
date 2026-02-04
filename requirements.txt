@@ -15,6 +15,8 @@ langchain-huggingface
 langgraph
 faiss-cpu
 pypdf
+pymupdf
+pdfplumber
 pyhwp
 python-docx
 huggingface-hub

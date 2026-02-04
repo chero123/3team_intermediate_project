@@ -142,30 +142,6 @@ def _ensure_sentence(text: str) -> str:
     return f"{text}."
 
 
-def _force_three_sentences(text: str) -> list[str]:
-    """
-    출력 문장을 3개로 강제한다.
-
-    Args:
-        text: 입력 텍스트
-
-    Returns:
-        list[str]: 정확히 3개 문장
-    """
-    # 문장 분리
-    sentences = _split_sentences(text)
-    # 공백만 있는 문장은 제거
-    sentences = [s for s in (s.strip() for s in sentences) if s]
-    # 문장이 없으면 빈 리스트 반환
-    if not sentences:
-        return []
-    # 3문장 미만이면 마지막 문장을 반복해 채운다.
-    if len(sentences) < 3:
-        sentences += [sentences[-1]] * (3 - len(sentences))
-    # 3문장 초과는 앞에서 자른다.
-    return sentences[:3]
-
-
 def _split_sentence_for_tts(sentence: str, max_words: int = 8, max_chars: int = 90) -> list[str]:
     """
     너무 긴 문장을 TTS용 짧은 구간으로 쪼갠다.
@@ -306,8 +282,8 @@ def _run_once(pipeline: OpenAIRAGPipeline, question: str, use_tts: bool, device:
     answer = pipeline.ask(question)
     # 후처리로 불필요한 라인을 제거
     answer = _sanitize_answer(answer)
-    # 정확히 3문장으로 맞춘다.
-    sentences = _force_three_sentences(answer)
+    # 문장 단위로 분리해 그대로 출력한다.
+    sentences = [s for s in (s.strip() for s in _split_sentences(answer)) if s]
     if not sentences:
         print("답변을 생성할 수 없습니다.")
         return

@@ -26,16 +26,16 @@ class RAGConfig:
     rrf_strategy: str = "rrf"
 
     # 생성 응답 최대 토큰 수 설정
-    response_max_tokens: int = 160
+    response_max_tokens: int = 480
     # 생성 샘플링 온도 설정
-    response_temperature: float = 0.2
+    response_temperature: float = 0.1
 
     # LLM 로컬 경로 지정
     llm_model_path: str = "models/YanoljaNEXT-EEVE-7B-v2"
     # 임베딩 로컬 경로 지정
     embedding_model_path: str = "models/bge-m3-ko"
     # 랭커 로컬 경로 지정
-    rerank_model_path: str = "models/bge-reranker-v2-m3"
+    rerank_model_path: str = "models/bge-reranker-v2-m3-ko"
     # 실행 디바이스 설정
     device: str = "cuda"
     # vLLM 4-bit(bitsandbytes) 양자화 사용

@@ -90,15 +90,6 @@ def _ensure_sentence(text: str) -> str:
     return f"{text}."
 
 
-def _force_three_sentences(text: str) -> list[str]:
-    # 리라이팅 결과를 반드시 3문장으로 맞춰 UI/음성 흐름을 고정한다.
-    sentences = _split_sentences(text)
-    sentences = [s for s in (s.strip() for s in sentences) if s]
-    if len(sentences) < 3:
-        sentences += ["모른다"] * (3 - len(sentences))
-    return sentences[:3]
-
-
 def _split_sentence_for_tts(sentence: str, max_words: int = 8, max_chars: int = 90) -> list[str]:
     # TTS는 너무 긴 문장에서 오류/왜곡이 생기므로 짧게 분할한다.
     if len(sentence) <= max_chars:
@@ -193,7 +184,7 @@ def _run_once(pipeline: RAGPipeline, question: str, use_tts: bool, device: str, 
     # 1) RAG 질의 -> 원본 답변 생성
     answer = pipeline.ask(question)
     answer = _sanitize_answer(answer)
-    sentences = _force_three_sentences(answer)
+    sentences = [s for s in (s.strip() for s in _split_sentences(answer)) if s]
     if not sentences:
         sentences = ["답변을 생성할 수 없습니다."]
 

@@ -223,7 +223,7 @@ class Indexer:
         """
         # 상태 파일은 UTC 기준으로 갱신 시간을 기록한다.
         status.updated_at = datetime.now(timezone.utc).isoformat()
-        # 상태는 사람이 JSON으로 기록한다.
+        # 상태는 JSON으로 기록한다.
         with open(self.config.index_status_path, "w", encoding="utf-8") as f:
             json.dump(asdict(status), f, ensure_ascii=False, indent=2)
 
