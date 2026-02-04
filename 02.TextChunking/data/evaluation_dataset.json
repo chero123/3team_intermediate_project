@@ -1,0 +1,718 @@
+{
+  "version": "1.0",
+  "description": "공공·행사·정보시스템 구축 RFP 기반 RAG 평가 데이터셋",
+  "created_at": "2024-01-15",
+  "evaluation_set": [
+    {
+      "id": "q001",
+      "question": "본 사업의 사업명은 무엇인가요?",
+      "category": "사업개요",
+      "difficulty": "easy",
+      "ground_truth": {
+        "answer": "BIFF & ACFM 온라인서비스 재개발 및 행사지원시스템 공급 사업",
+        "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+        "expected_chunk_ids": ["부산국제영화제::chunk0"],
+        "relevant_keywords": ["사업명", "온라인서비스", "행사지원"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["온라인서비스"],
+        "must_not_include": [],
+        "min_keyword_match": 1
+      }
+    },
+    {
+      "id": "q002",
+      "question": "본 사업의 계약 기간은 언제부터 언제까지인가요?",
+      "category": "사업기간",
+      "difficulty": "easy",
+      "ground_truth": {
+        "answer": "계약체결일로부터 2025년 5월 31일까지이다.",
+        "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+        "expected_chunk_ids": ["부산국제영화제::chunk2"],
+        "relevant_keywords": ["계약기간", "2025", "5월"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["2025", "5월"],
+        "must_not_include": [],
+        "min_keyword_match": 2
+      }
+    },
+    {
+      "id": "q003",
+      "question": "본 사업의 총 사업예산은 얼마인가요?",
+      "category": "예산",
+      "difficulty": "easy",
+      "ground_truth": {
+        "answer": "총 사업예산은 243,000,000원(VAT 포함)이다.",
+        "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+        "expected_chunk_ids": ["부산국제영화제::chunk2"],
+        "relevant_keywords": ["예산", "243,000,000", "VAT"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["243"],
+        "must_not_include": [],
+        "min_keyword_match": 1
+      }
+    },
+    {
+      "id": "q004",
+      "question": "입찰 방식은 무엇인가요?",
+      "category": "입찰방식",
+      "difficulty": "easy",
+      "ground_truth": {
+        "answer": "제한경쟁입찰(지역 제한) 방식이다.",
+        "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+        "expected_chunk_ids": ["부산국제영화제::chunk2"],
+        "relevant_keywords": ["제한경쟁입찰", "지역제한"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["제한"],
+        "must_not_include": ["일반경쟁"],
+        "min_keyword_match": 1
+      }
+    },
+
+    {
+      "id": "q005",
+      "question": "본 사업에서 제공해야 하는 주요 웹 서비스 형태는 무엇인가요?",
+      "category": "과업범위",
+      "difficulty": "medium",
+      "ground_truth": {
+        "answer": "공식 웹사이트, 모바일 웹 및 앱, 관리자 시스템을 포함한다.",
+        "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+        "expected_chunk_ids": ["부산국제영화제::chunk3"],
+        "relevant_keywords": ["웹사이트", "모바일", "관리자"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["모바일"],
+        "must_not_include": [],
+        "min_keyword_match": 2
+      }
+    },
+
+    {
+      "id": "q006",
+      "question": "행사지원시스템은 어떤 형태로 제공될 수 있나요?",
+      "category": "시스템구성",
+      "difficulty": "medium",
+      "ground_truth": {
+        "answer": "모바일 웹 또는 앱 형태로 제공될 수 있다.",
+        "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+        "expected_chunk_ids": ["부산국제영화제::chunk2"],
+        "relevant_keywords": ["모바일웹", "앱"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["모바일"],
+        "must_not_include": [],
+        "min_keyword_match": 1
+      }
+    },
+
+    {
+      "id": "q007",
+      "question": "본 사업에서 요구하는 개발 언어 또는 기술 기반은 무엇인가요?",
+      "category": "기술요건",
+      "difficulty": "medium",
+      "ground_truth": {
+        "answer": "응용 프로그램은 Java 기반으로 개발하는 것을 원칙으로 한다.",
+        "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+        "expected_chunk_ids": ["KUSF::chunk0"],
+        "relevant_keywords": ["Java", "기반"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["Java"],
+        "must_not_include": ["Python"],
+        "min_keyword_match": 1
+      }
+    },
+
+    {
+      "id": "q008",
+      "question": "본 사업의 수행 결과로 제출해야 하는 주요 산출물은 무엇인가요?",
+      "category": "산출물",
+      "difficulty": "medium",
+      "ground_truth": {
+        "answer": "시스템 구축 결과물, 매뉴얼, 운영 관련 문서가 포함된다.",
+        "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+        "expected_chunk_ids": ["KUSF::chunk12"],
+        "relevant_keywords": ["산출물", "매뉴얼", "문서"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["매뉴얼"],
+        "must_not_include": [],
+        "min_keyword_match": 1
+      }
+    },
+
+    {
+      "id": "q009",
+      "question": "본 사업에서 고려해야 할 웹 접근성 관련 기준은 무엇인가요?",
+      "category": "보안·표준",
+      "difficulty": "hard",
+      "ground_truth": {
+        "answer": "한국형 웹 콘텐츠 접근성 지침을 포함한 정부 웹 표준을 준수해야 한다.",
+        "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+        "expected_chunk_ids": ["KUSF::chunk20"],
+        "relevant_keywords": ["웹접근성", "표준", "지침"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["접근성"],
+        "must_not_include": [],
+        "min_keyword_match": 1
+      }
+    },
+
+    {
+      "id": "q010",
+      "question": "본 사업은 어떤 계약 방식으로 진행되나요?",
+      "category": "계약",
+      "difficulty": "easy",
+      "ground_truth": {
+        "answer": "협상에 의한 계약 방식으로 진행된다.",
+        "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+        "expected_chunk_ids": ["부산국제영화제::chunk2"],
+        "relevant_keywords": ["협상", "계약"]
+      },
+      "evaluation_criteria": {
+        "must_include": ["협상"],
+        "must_not_include": ["최저가"],
+        "min_keyword_match": 1
+      }
+    },
+  {
+    "id": "q011",
+    "question": "본 사업의 주요 추진 배경은 무엇인가요?",
+    "category": "사업개요",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "기존 시스템의 노후화와 기능 한계를 개선하기 위함이다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk1"],
+      "relevant_keywords": ["노후화", "기능한계", "개선"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["개선"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q012",
+    "question": "사전 컨설팅의 주요 목적은 무엇인가요?",
+    "category": "사업목적",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "통합 정보시스템 구축을 위한 요구사항 도출 및 방향성 수립이다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk2"],
+      "relevant_keywords": ["요구사항", "방향성", "통합시스템"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["요구사항"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q013",
+    "question": "본 사업에서 분석 대상으로 포함되는 시스템 범위는 무엇인가요?",
+    "category": "과업범위",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "기존 운영 중인 개별 업무 시스템 전반을 분석 대상으로 포함한다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk3"],
+      "relevant_keywords": ["기존시스템", "분석대상", "업무시스템"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["기존"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q014",
+    "question": "요구사항 정의 시 고려해야 할 주요 관점은 무엇인가요?",
+    "category": "요구사항",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "업무 효율성, 사용자 편의성, 시스템 확장성을 고려해야 한다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk4"],
+      "relevant_keywords": ["효율성", "편의성", "확장성"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["확장"],
+      "must_not_include": [],
+      "min_keyword_match": 2
+    }
+  },
+  {
+    "id": "q015",
+    "question": "본 사업에서 제시된 시스템 구축 방식은 무엇인가요?",
+    "category": "시스템구성",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "통합 플랫폼 기반의 단계적 구축 방식을 제시하고 있다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk5"],
+      "relevant_keywords": ["통합플랫폼", "단계적", "구축"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["통합"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q016",
+    "question": "본 사업에서 데이터 표준화가 필요한 이유는 무엇인가요?",
+    "category": "데이터",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "시스템 간 연계성과 데이터 품질 확보를 위해 필요하다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk6"],
+      "relevant_keywords": ["데이터표준", "연계", "품질"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["연계"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q017",
+    "question": "시스템 구축 시 보안 측면에서 고려해야 할 사항은 무엇인가요?",
+    "category": "보안",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "개인정보 보호와 접근 권한 통제를 고려해야 한다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk18"],
+      "relevant_keywords": ["개인정보", "접근권한", "보안"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["개인정보"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q018",
+    "question": "본 시스템에서 사용자 권한은 어떻게 구분되나요?",
+    "category": "권한관리",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "관리자, 운영자, 일반 사용자 등으로 구분된다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk10"],
+      "relevant_keywords": ["관리자", "운영자", "권한"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["관리자"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q019",
+    "question": "본 사업에서 요구하는 유지보수 범위는 무엇인가요?",
+    "category": "유지보수",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "시스템 오류 수정 및 경미한 기능 개선을 포함한다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk9"],
+      "relevant_keywords": ["유지보수", "오류", "기능개선"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["오류"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q020",
+    "question": "본 사업의 기술평가 방식은 어떻게 구성되나요?",
+    "category": "평가기준",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "정성평가 방식으로 기술 적합성과 수행 역량을 평가한다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk12"],
+      "relevant_keywords": ["정성평가", "기술평가"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["정성"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+
+  {
+    "id": "q021",
+    "question": "기술평가 항목 중 가장 높은 배점을 차지하는 요소는 무엇인가요?",
+    "category": "평가기준",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "기술 이해도 및 제안의 적합성이 가장 높은 배점을 차지한다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk13"],
+      "relevant_keywords": ["배점", "기술이해도", "적합성"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["적합"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q022",
+    "question": "제안서 제출 방식은 어떻게 이루어지나요?",
+    "category": "제안절차",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "나라장터를 통한 전자 제출 방식으로 진행된다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk2"],
+      "relevant_keywords": ["나라장터", "전자제출"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["전자"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q023",
+    "question": "본 사업에서 요구되는 제안서 구성 요소는 무엇인가요?",
+    "category": "제안서",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "사업 이해도, 수행 전략, 인력 구성, 일정 계획을 포함해야 한다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk5"],
+      "relevant_keywords": ["수행전략", "인력", "일정"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["인력"],
+      "must_not_include": [],
+      "min_keyword_match": 2
+    }
+  },
+  {
+    "id": "q024",
+    "question": "하도급은 허용되나요?",
+    "category": "계약조건",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "하도급은 원칙적으로 제한되며 사전 승인이 필요하다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk7"],
+      "relevant_keywords": ["하도급", "승인"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["승인"],
+      "must_not_include": ["자유"],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q025",
+    "question": "본 사업에서 요구하는 투입 인력의 조건은 무엇인가요?",
+    "category": "인력",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "관련 분야 경험을 보유한 전담 인력을 투입해야 한다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk6"],
+      "relevant_keywords": ["전담인력", "경험"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["전담"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+
+  {
+    "id": "q026",
+    "question": "본 시스템은 어떤 외부 시스템과 연계될 수 있나요?",
+    "category": "연계",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "기존 내부 시스템 및 외부 공공 데이터 시스템과 연계될 수 있다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk14"],
+      "relevant_keywords": ["외부연계", "공공데이터"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["연계"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q027",
+    "question": "본 사업에서 요구하는 통계 기능의 목적은 무엇인가요?",
+    "category": "기능요건",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "경기 기록 및 운영 현황을 분석하기 위함이다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk16"],
+      "relevant_keywords": ["통계", "분석"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["분석"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q028",
+    "question": "검수는 어떤 절차로 진행되나요?",
+    "category": "검수",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "단계별 산출물에 대해 발주기관 검수를 거쳐 진행된다.",
+      "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+      "expected_chunk_ids": ["부산국제영화제::chunk8"],
+      "relevant_keywords": ["검수", "산출물"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["검수"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q029",
+    "question": "사업 수행 중 변경 사항은 어떻게 처리하나요?",
+    "category": "수행관리",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "발주기관과 협의를 통해 변경 관리 절차에 따라 처리한다.",
+      "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+      "expected_chunk_ids": ["부산국제영화제::chunk9"],
+      "relevant_keywords": ["변경관리", "협의"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["변경"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q030",
+    "question": "본 사업 종료 후 지식재산권은 누구에게 귀속되나요?",
+    "category": "지식재산권",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "사업 결과물의 지식재산권은 발주기관에 귀속된다.",
+      "source_docs": ["(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp"],
+      "expected_chunk_ids": ["부산국제영화제::chunk10"],
+      "relevant_keywords": ["지식재산권", "귀속"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["귀속"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+
+  {
+    "id": "q031",
+    "question": "본 사업에서 요구하는 사용자 교육 범위는 무엇인가요?",
+    "category": "교육",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "시스템 운영자 및 일반 사용자를 대상으로 교육을 제공해야 한다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk22"],
+      "relevant_keywords": ["교육", "운영자"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["교육"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q032",
+    "question": "장애 발생 시 대응 방안은 무엇인가요?",
+    "category": "운영",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "장애 발생 시 즉각적인 조치와 보고 체계를 통해 대응한다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk23"],
+      "relevant_keywords": ["장애", "대응"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["장애"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q033",
+    "question": "본 시스템은 모바일 환경을 지원하나요?",
+    "category": "환경",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "모바일 웹 환경을 지원하도록 설계되어야 한다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk11"],
+      "relevant_keywords": ["모바일", "웹"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["모바일"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q034",
+    "question": "본 사업에서 요구하는 로그 관리 목적은 무엇인가요?",
+    "category": "보안",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "사용자 행위 추적 및 보안 사고 대응을 위함이다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk19"],
+      "relevant_keywords": ["로그", "보안"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["로그"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q035",
+    "question": "본 사업은 단계별 산출물 제출이 필요한가요?",
+    "category": "산출물",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "각 단계별로 정의된 산출물을 제출해야 한다.",
+      "source_docs": ["(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업.hwp"],
+      "expected_chunk_ids": ["벤처기업협회::chunk8"],
+      "relevant_keywords": ["단계별", "산출물"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["산출물"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q036",
+    "question": "본 사업 수행 시 관련 법령 준수 사항은 무엇인가요?",
+    "category": "법규",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "개인정보보호법 등 관련 법령을 준수해야 한다.",
+      "source_docs": ["KUSF 체육특기자 경기기록 관리시스템 개발.hwp"],
+      "expected_chunk_ids": ["KUSF::chunk17"],
+      "relevant_keywords": ["법령", "개인정보보호법"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["법"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q037",
+    "question": "본 사업의 결과물에 대한 검증 기준은 무엇인가요?",
+    "category": "검증",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "요구사항 충족 여부와 정상 동작 여부를 기준으로 검증한다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk7"],
+      "relevant_keywords": ["요구사항", "검증"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["요구"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q038",
+    "question": "본 사업에서 제시한 향후 확장 방향은 무엇인가요?",
+    "category": "확장성",
+    "difficulty": "hard",
+    "ground_truth": {
+      "answer": "추가 서비스 및 기능 확장을 고려한 구조를 지향한다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk8"],
+      "relevant_keywords": ["확장", "구조"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["확장"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q039",
+    "question": "본 사업 수행 시 발주기관과의 협업 방식은 무엇인가요?",
+    "category": "협업",
+    "difficulty": "medium",
+    "ground_truth": {
+      "answer": "정기적인 회의 및 보고를 통해 협업한다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk9"],
+      "relevant_keywords": ["회의", "보고"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["보고"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  },
+  {
+    "id": "q040",
+    "question": "본 사업의 최종 목표는 무엇인가요?",
+    "category": "사업목표",
+    "difficulty": "easy",
+    "ground_truth": {
+      "answer": "안정적이고 효율적인 통합 정보시스템 구축이다.",
+      "source_docs": ["(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp"],
+      "expected_chunk_ids": ["예술경영지원센터::chunk0"],
+      "relevant_keywords": ["통합시스템", "효율"]
+    },
+    "evaluation_criteria": {
+      "must_include": ["통합"],
+      "must_not_include": [],
+      "min_keyword_match": 1
+    }
+  }
+
+  ],
+
+  "metadata": {
+    "total_questions": 40,
+    "categories": [
+      "사업개요",
+      "사업기간",
+      "예산",
+      "입찰방식",
+      "과업범위",
+      "기술요건",
+      "산출물",
+      "보안·표준",
+      "평가기준",
+      "계약"
+    ],
+    "difficulty_distribution": {
+      "easy": 14,
+      "medium": 16,
+      "hard": 10
+    }
+  }
+}
