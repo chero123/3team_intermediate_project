@@ -17,6 +17,7 @@ fastapi
 gradio
 uvicorn
 faiss-cpu
+rank-bm25
 pypdf
 pymupdf
 pdfplumber

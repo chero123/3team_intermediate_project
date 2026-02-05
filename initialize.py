@@ -20,12 +20,12 @@ RAW_DIR = Path(__file__).resolve().parent
 MODEL_ASSETS_DIR = RAW_DIR / "models"
 
 MODELS = {  # 다운로드할 모델 목록
-    # "bge-m3-ko": "dragonkue/BGE-m3-ko",  # 임베딩 모델
-    # "bge-reranker-v2-m3": "BAAI/bge-reranker-v2-m3",  # 리랭커 모델
-    # "bge-reranker-v2-m3-ko": "dragonkue/bge-reranker-v2-m3-ko",  # 리랭커 모델2
-    # "YanoljaNEXT-EEVE-7B-v2": "YanoljaNEXT/YanoljaNEXT-EEVE-7B-v2",  # LLM
-    # "melo_yae": "ahnhs2k/yae_meloTTS",  # TTS 모델 (private repository)
-    "qwen3-vl-8b": "Qwen/Qwen3-VL-8B-Instruct-FP8"
+    "bge-m3-ko": "dragonkue/BGE-m3-ko",  # 임베딩 모델
+    "bge-reranker-v2-m3": "BAAI/bge-reranker-v2-m3",  # 리랭커 모델
+    "bge-reranker-v2-m3-ko": "dragonkue/bge-reranker-v2-m3-ko",  # 리랭커 모델2
+    "YanoljaNEXT-EEVE-7B-v2": "YanoljaNEXT/YanoljaNEXT-EEVE-7B-v2",  # LLM
+    "melo_yae": "ahnhs2k/yae_meloTTS",  # TTS 모델 (private repository)
+    "qwen3-vl-8b": "Qwen/Qwen3-VL-8B-Instruct-FP8" # VLM 모델
 }
 
 
@@ -76,8 +76,6 @@ def main() -> None:
         download_one(repo_id=repo_id, local_subdir=local_subdir)
 
     print("\n[ALL DONE] models downloaded into models")
-
-
 
 if __name__ == "__main__":
     main()

@@ -10,7 +10,6 @@ OpenAI 전용 검색/분석 흐름 모듈
 - 검색/리랭킹 구현
 """
 
-import json
 import os
 import pickle
 import re
@@ -34,6 +33,7 @@ QUESTION_TYPE_FOLLOWUP = "followup"
 # Heuristic keywords for question classification (LLM 분류 폴백)
 COMPARE_KEYWORDS = ["비교", "차이", "서로", "vs", "대비"]
 FOLLOWUP_KEYWORDS = ["그럼", "그렇다면", "또", "추가로", "더", "이어서", "방금", "앞서"]
+MULTI_KEYWORDS = ["여러", "모든", "각각", "기관"]
 
 
 # Query analysis result
@@ -123,7 +123,7 @@ class QueryAnalysisAgent:
             return QUESTION_TYPE_FOLLOWUP
         if state and state.last_user_message() and len(question) < 30:
             return QUESTION_TYPE_FOLLOWUP
-        if any(token in question for token in ["여러", "모든", "각각", "기관"]):
+        if any(keyword in question for keyword in MULTI_KEYWORDS):
             return QUESTION_TYPE_MULTI
         return QUESTION_TYPE_SINGLE
 
@@ -191,30 +191,6 @@ def _lc_doc_to_chunk(doc: LCDocument) -> Chunk:
     return Chunk(id=chunk_id, text=doc.page_content, metadata=metadata)
 
 
-def _build_bm25_from_preview(preview_path: str, top_k: int) -> Optional[BM25Retriever]:
-    if not os.path.exists(preview_path):
-        return None
-    try:
-        with open(preview_path, "r", encoding="utf-8") as f:
-            preview = json.load(f)
-    except Exception:
-        return None
-    if not isinstance(preview, list):
-        return None
-    docs: List[LCDocument] = []
-    for item in preview:
-        text = item.get("text") or ""
-        if not text:
-            continue
-        metadata = dict(item.get("metadata") or {})
-        metadata["chunk_id"] = item.get("id", "")
-        docs.append(LCDocument(page_content=text, metadata=metadata))
-    if not docs:
-        return None
-    retriever = BM25Retriever.from_documents(docs)
-    retriever.k = top_k
-    return retriever
-
 
 def _load_bm25_from_file(path: str, top_k: int) -> Optional[BM25Retriever]:
     if not os.path.exists(path):
@@ -267,11 +243,9 @@ class Retriever:
         self._bm25: Optional[BM25Retriever] = None
 
     def retrieve(self, plan: RetrievalPlan) -> RetrievalResult:
-        if plan.strategy == self.config.rrf_strategy:
+        # 단일 문서는 similarity, 다문서는 RRF(similarity+mmr+bm25)로 단순화한다.
+        if plan.needs_multi_doc:
             chunks = self._retrieve_with_rrf(plan)
-            scores = None
-        elif plan.strategy == self.config.mmr_strategy:
-            chunks = self._retrieve_with_mmr(plan)
             scores = None
         else:
             chunks, scores = self.store.similarity_search(
@@ -300,11 +274,10 @@ class Retriever:
             bm25_chunks = [_lc_doc_to_chunk(doc) for doc in docs]
 
         ranked_lists: List[tuple[List[Chunk], float]] = [
-            (sim_chunks, 1.0),
-            (mmr_chunks, 1.0),
+            (sim_chunks, self.config.rrf_dense_weight),
+            (mmr_chunks, self.config.rrf_mmr_weight),
+            (bm25_chunks, self.config.rrf_bm25_weight),
         ]
-        if bm25_chunks:
-            ranked_lists.append((bm25_chunks, self.config.bm25_weight))
 
         fused = reciprocal_rank_fusion(ranked_lists, k=self.config.rrf_k)
         return fused[: plan.top_k]
@@ -321,8 +294,6 @@ class Retriever:
     def _get_bm25(self, top_k: int) -> Optional[BM25Retriever]:
         if self._bm25 is None:
             self._bm25 = _load_bm25_from_file(self.config.bm25_index_path, top_k)
-        if self._bm25 is None:
-            self._bm25 = _build_bm25_from_preview(self.config.chunk_preview_path, top_k)
         if self._bm25 is not None:
             self._bm25.k = top_k
         return self._bm25

@@ -115,17 +115,46 @@ END
   - 위 조건에 해당하지 않는 일반 질문
   - 전략: `similarity_strategy`, `needs_multi_doc=False`
 
+## 메타데이터 필터링
+- 질문에서 기관명/사업명 등을 추출해 메타데이터 필터로 사용한다.
+- 예시:
+  - `issuer = "한국생산기술연구원"`
+  - `project_name = "2세대 전자조달시스템"`
+- 필터가 있으면 검색 결과 중 해당 값과 일치하는 청크만 유지한다.
+
 ## 검색 전략 상세
-- similarity: 벡터 유사도 기반 상위 `top_k` 검색
-- mmr: 다양성 기반 MMR 검색 (후보 풀 `mmr_candidate_pool`)
-- rrf: similarity + mmr 결과를 RRF로 결합
+- similarity: 벡터 유사도 기반으로 가장 가까운 청크를 찾는다. 빠르고 안정적이다.
+- mmr: 유사도와 다양성을 동시에 고려해 중복을 줄인다.
+  - 여기서 “다양성”은 이미 선택된 청크들과의 내용 유사도가 낮은 청크를 우대한다는 뜻이다.
+  - 즉, 같은 문단/같은 표 설명만 반복되는 것을 피하고 서로 다른 단락·섹션의 정보를 섞는다.
+- bm25: 키워드/문구 일치에 강한 sparse 검색이다.
+- rrf: 여러 검색 결과의 순위를 누적해 안정적인 상위 결과를 만든다.  
+  - similarity + mmr + bm25를 결합  
+  - bm25 인덱스가 없으면 similarity + mmr만 결합  
+  - `bm25_weight`로 bm25 영향도를 조절함
+
+## 전략 선택 이유
+- single 질문: 단일 문서에서 정확한 답을 찾는 문제로 가정  
+  - similarity만 사용해 노이즈를 줄이고 속도를 확보  
+- multi/compare 질문: 여러 문서를 섞어야 하므로 다양성과 키워드 신호가 중요  
+  - rrf로 similarity + mmr + bm25를 결합해 폭넓게 커버  
+- followup 질문: 이전 맥락을 좁혀서 찾는 게 중요  
+  - similarity로 집중된 검색을 수행
+
+### MMR 예시
+- 질문: “사업 목적과 범위 요약”
+  - similarity만 쓰면 “목적” 관련 청크가 반복적으로 상위에 몰릴 수 있다.
+  - MMR은 “목적” 청크 1개를 뽑은 뒤, 다음에는 “범위/일정/요구사항”처럼  
+    서로 다른 내용의 청크를 섞어 중복을 줄인다.
 
 ## 리랭크
 - `CrossEncoderReranker`가 쿼리/청크 쌍을 재점수화해 상위 `top_n`만 유지한다.
   
 ## OpenAI 전용 모델 분리
-- 본문 생성: `config.openai_model` (예: `gpt-5-mini`)
-- 분류/리라이트: `openai_pipeline.OpenAIRAGPipeline.small_llm` (예: `gpt-4.1-mini`)
+- 본문 생성: `config.openai_model` (`gpt-5-mini`)
+- 분류/리라이트: `openai_pipeline.OpenAIRAGPipeline.small_llm` (`gpt-4o-mini`)
+- 모델을 나눈 이유: gpt-5 계열은 기본적으로 추론 모델이라 토큰 수가 너무 많이 든다.
+                  따라서 리라이트와 분류 같은 많은 토큰 수가 필요 없는 작업에는 gpt-4 계열을 사용한다.
 
 ## 청킹 모니터링
 - `data/index_status.json`에 문서 수, 청크 수, 길이 통계가 기록

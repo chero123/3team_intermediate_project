@@ -11,6 +11,9 @@ from __future__ import annotations
 - 청킹
 - 임베딩
 - FAISS 저장
+
+실행 방법:
+uv run scripts/build_index.py --data-dir <데이터 디렉토리 경로> --metadata <메타데이터 파일 경로>
 """
 
 import argparse
@@ -23,9 +26,6 @@ def main() -> None:
     인덱싱 생성 함수
 
     Indexer 객체를 생성하여 지정된 데이터 디렉토리와 메타데이터 파일을 사용하여 인덱스 빌드
-
-    실행 방법
-    uv run scripts/build_index.py --data-dir <데이터 디렉토리 경로> --metadata <메타데이터 파일 경로>
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", default="data/files")

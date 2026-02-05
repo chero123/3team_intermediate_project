@@ -132,6 +132,7 @@ class FaissVectorStore:
         results = self.store.similarity_search_with_score(query, k=fetch)
         filtered = []
         # 메타데이터 필터가 있으면 사후 필터링으로 제거한다.
+        # 예: issuer="한국생산기술연구원", project_name="2세대 전자조달시스템"
         for doc, score in results:
             chunk = _doc_to_chunk(doc)
             if metadata_filter:

@@ -180,5 +180,5 @@ class RAGPipeline:
         Returns:
             dict: 업데이트할 상태 조각
         """
-        rewritten = rewrite_answer(self.llm, state["answer"])
+        rewritten = rewrite_answer(self.llm, self.config, state["answer"])
         return {"rewritten": rewritten}

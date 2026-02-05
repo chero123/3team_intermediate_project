@@ -197,5 +197,5 @@ class OpenAIRAGPipeline:
             dict: {"rewritten": str}
         """
         # 리라이트는 작은 모델로 수행한다.
-        rewritten = rewrite_answer(self.small_llm, state["answer"])
+        rewritten = rewrite_answer(self.small_llm, self.config, state["answer"])
         return {"rewritten": rewritten}

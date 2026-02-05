@@ -10,7 +10,15 @@ from .types import Chunk
 
 
 class LLM:
-    def generate(self, prompt: str, max_tokens: int, temperature: float) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float | None = None,
+        repetition_penalty: float | None = None,
+        stop: List[str] | None = None,
+    ) -> str:
         """
         generate는 프롬프트로 텍스트를 생성
 
@@ -56,7 +64,15 @@ class VLLMLLM(LLM):
             engine_kwargs["quantization"] = quantization
         self.engine = VLLMEngine(**engine_kwargs)
 
-    def generate(self, prompt: str, max_tokens: int, temperature: float) -> str:
+    def generate(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float | None = None,
+        repetition_penalty: float | None = None,
+        stop: List[str] | None = None,
+    ) -> str:
         """
         vLLM 엔진으로 텍스트를 생성한다.
 
@@ -68,10 +84,13 @@ class VLLMLLM(LLM):
         Returns:
             str: 생성된 텍스트
         """
-        # 샘플링 파라미터는 응답 길이/온도만 노출해 단순하게 유지
+        # 샘플링 파라미터에 반복 억제/다양성 옵션을 포함한다.
         params = SamplingParams(
             max_tokens=max_tokens,
             temperature=temperature,
+            top_p=1.0 if top_p is None else top_p,
+            repetition_penalty=1.0 if repetition_penalty is None else repetition_penalty,
+            stop=stop,
         )
         outputs = self.engine.generate([prompt], params)
         if not outputs:
@@ -104,22 +123,23 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
         context_blocks.append(block)
     context = "\n\n".join(context_blocks)
     return f"""
-너는 문서 기반 요약 캐릭터 어시스턴트다.
+너는 문서 기반 요약 AI 어시스턴트다.
 오직 컨텍스트에 있는 사실만 사용하고 추측하지 않는다.
-질문에 필요한 정보만 골라 간결하게 반말로 답한다.
+가정, 가능성, 예시, 추론, 일반화 표현을 쓰지 않는다.
+질문에 필요한 정보만 골라 간결하게 문장으로 답한다.
 중복/군더더기 표현을 줄이고 핵심만 남긴다.
-반드시 3문장으로만 답하고, 각 문장은 마침표로 끝낸다.
-모든 문장은 완결된 문장으로 끝낸다. 미완성 단어로 끝내지 않는다.
+각 문장은 마침표로 끝내고, 미완성 단어로 끝내지 않는다.
 요약, 결론 같은 라벨을 붙이지 않는다.
 제안서 문맥이므로 과거형 서술을 피하고 현재형으로 서술한다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
 컨텍스트에 없으면 모른다고만 말하라.
-반말로 출력한다.
 
 질문: {question}
 
 컨텍스트:
 {context}
+
+요약:
 """.strip()
 
 
@@ -144,11 +164,28 @@ def generate_answer(llm: LLM, config: RAGConfig, question: str, context_chunks: 
         prompt=prompt,
         max_tokens=config.response_max_tokens,
         temperature=config.response_temperature,
+        top_p=config.response_top_p,
+        repetition_penalty=config.response_repetition_penalty,
+        stop=config.response_stop,
     )
 
 
 # Rewrite / Classification
-def rewrite_answer(llm: LLM, answer: str) -> str:
+def _strip_rewrite_output(text: str) -> str:
+    """
+    리라이트 결과에서 불필요한 라벨/설명 텍스트를 제거한다.
+    """
+    if not text:
+        return ""
+    cleaned = text.strip()
+    markers = ("rewrite 결과:", "rewrite 결과", "rewrite:", "결과:", "출력:", "원문")
+    for marker in markers:
+        if marker in cleaned:
+            cleaned = cleaned.split(marker, 1)[-1].strip()
+    return cleaned
+
+
+def rewrite_answer(llm: LLM, config: RAGConfig, answer: str) -> str:
     """
     rewrite_answer는 답변을 3문장 요약 형식으로 리라이팅한다.
 
@@ -160,14 +197,12 @@ def rewrite_answer(llm: LLM, answer: str) -> str:
         str: 리라이팅된 답변
     """
     prompt = f"""
-너는 원문을 반말 구어체로 rewrite하는 AI 어시스턴트다.
-자연스러운 한국어 반말로 rewrite한다.
-rewrite 시에는 반드시 반말을 사용한다.
-3문장으로 rewrite하고, 각 문장은 마침표로 끝낸다.
+너는 원문을 간결한 문장형 요약으로 rewrite하는 AI 어시스턴트다.
+문장형으로 자연스럽게 rewrite한다.
+각 문장은 마침표로 끝내고, 미완성 단어로 끝내지 않는다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
-설명체는 사용하지 않는다.
-내용을 모르면 '무슨 소리인지 모르겠네. 너 날 놀리는 거니?'라고만 말하라.
-rewrite 결과만 출력한다.
+내용을 모르면 '모른다'라고만 말하라.
+출력은 최종 문장만 작성한다. 라벨이나 설명을 출력하지 않는다.
 
 원문:
 {answer}
@@ -175,7 +210,15 @@ rewrite 결과만 출력한다.
 rewrite 결과:
 """.strip()
     # 리라이트는 스타일을 살리기 위해 온도를 약간 높인다.
-    return llm.generate(prompt=prompt, max_tokens=480, temperature=0.7)
+    output = llm.generate(
+        prompt=prompt,
+        max_tokens=config.rewrite_max_tokens,
+        temperature=config.rewrite_temperature,
+        top_p=config.rewrite_top_p,
+        repetition_penalty=config.rewrite_repetition_penalty,
+        stop=config.rewrite_stop,
+    )
+    return _strip_rewrite_output(output)
 
 
 def classify_query_type(llm: LLM, question: str) -> str:
@@ -197,7 +240,14 @@ def classify_query_type(llm: LLM, question: str) -> str:
 라벨:
 """.strip()
     # 분류는 결정론적 출력을 위해 온도 0으로 호출한다.
-    label = llm.generate(prompt=prompt, max_tokens=8, temperature=0.0).strip().lower()
+    label = llm.generate(
+        prompt=prompt,
+        max_tokens=8,
+        temperature=0.0,
+        top_p=1.0,
+        repetition_penalty=1.0,
+        stop=[],
+    ).strip().lower()
     for key in ("single", "multi", "compare", "followup"):
         if key in label:
             return key

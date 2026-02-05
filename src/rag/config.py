@@ -7,7 +7,7 @@ RAG 전역 설정 모듈
 - 인덱싱/검색/생성 파라미터를 한 곳에서 관리
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -33,9 +33,22 @@ class RAGConfig:
     rrf_strategy: str = "rrf"
 
     # 생성 응답 최대 토큰 수 설정 (과도한 장문 방지)
-    response_max_tokens: int = 480
+    response_max_tokens: int = 640
     # 생성 샘플링 온도 설정 (요약 정확성 우선)
     response_temperature: float = 0.1
+    # 생성 상위 확률 누적(top-p) 설정 (반복 억제/다양성 확보)
+    response_top_p: float = 0.9
+    # 생성 반복 페널티 설정 (동일 문장 반복 억제)
+    response_repetition_penalty: float = 1.15
+    # 생성 중단 토큰 (라벨/메타 발화 방지)
+    response_stop: list[str] = field(
+        default_factory=lambda: [
+            "rewrite 결과",
+            "원문",
+            "그럼",
+            "무성의하게",
+        ]
+    )
 
     # LLM 로컬 경로 지정
     llm_model_path: str = "models/YanoljaNEXT-EEVE-7B-v2"
@@ -61,14 +74,34 @@ class RAGConfig:
 
     # RRF 결합 보정 상수 설정 (상위 랭크 편향 완화용)
     rrf_k: int = 60
+    # RRF에서 dense(similarity) 가중치
+    rrf_dense_weight: float = 1.0
+    # RRF에서 MMR 가중치
+    rrf_mmr_weight: float = 1.0
     # BM25 검색 결과 수 (키워드 매칭 신호 확보)
     bm25_top_k: int = 30
     # RRF에서 BM25 가중치 (dense 결과 대비 영향도)
-    bm25_weight: float = 1.0
+    rrf_bm25_weight: float = 1.0
     # MMR 가중치 설정 (관련성 vs 다양성 균형)
     mmr_lambda: float = 0.7
     # MMR 후보 풀 크기 설정 (다양성 확보용 후보 수)
     mmr_candidate_pool: int = 30
+
+    # 리라이트용 생성 토큰 수
+    rewrite_max_tokens: int = 480
+    # 리라이트용 온도 (말투/스타일 유지)
+    rewrite_temperature: float = 0.6
+    # 리라이트용 top-p
+    rewrite_top_p: float = 0.9
+    # 리라이트용 반복 페널티
+    rewrite_repetition_penalty: float = 1.1
+    # 리라이트 중단 토큰 (라벨/메타 발화 방지)
+    rewrite_stop: list[str] = field(
+        default_factory=lambda: [
+            "rewrite 결과",
+            "원문",
+        ]
+    )
 
     # 인덱스 저장 경로 지정
     index_dir: str = "data/index"

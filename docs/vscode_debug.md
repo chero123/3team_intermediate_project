@@ -6,7 +6,7 @@
 
 VSCode가 **uv 가상환경**(혹은 그 외)을 사용해야 패키지/상대 import가 정상 작동한다.
 
-- `Ctrl+Shift+P` → `Python: Select Interpreter`
+- `Ctrl+Shift+P` -> `Python: Select Interpreter`
 - `3team_intermediate_project/.venv/bin/python` 선택
 
 ## 2. 모듈 디버깅 설정 (상대 import 문제 해결)

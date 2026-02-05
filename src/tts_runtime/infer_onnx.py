@@ -46,7 +46,7 @@ except ModuleNotFoundError:
     from text.symbols import punctuation
     from text.ko_dictionary import english_dictionary, etc_dictionary
 
-# JSON 하이퍼파라미터를 dict처럼 접근하기 위한 경량 래퍼다.
+# JSON 하이퍼파라미터를 dict처럼 접근하기 위한 경량 래퍼
 class HParams:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
