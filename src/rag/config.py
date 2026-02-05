@@ -45,13 +45,17 @@ class RAGConfig:
         default_factory=lambda: [
             "rewrite 결과",
             "원문",
-            "그럼",
-            "무성의하게",
         ]
     )
+    # 컨텍스트 전체 길이 상한 (프롬프트 과장 방지, 문자 수 기준)
+    context_max_chars: int = 12000
+    # 청크 텍스트 단일 길이 상한 (문자 수 기준)
+    context_chunk_max_chars: int = 1200
+    # 메타데이터 단일 값 길이 상한 (문자 수 기준)
+    context_meta_max_chars: int = 400
 
     # LLM 로컬 경로 지정
-    llm_model_path: str = "models/YanoljaNEXT-EEVE-7B-v2"
+    llm_model_path: str = "models/A.X-4.0-Light"
     # 임베딩 로컬 경로 지정
     embedding_model_path: str = "models/bge-m3-ko"
     # 랭커 로컬 경로 지정

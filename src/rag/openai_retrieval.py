@@ -98,6 +98,8 @@ class QueryAnalysisAgent:
             needs_multi_doc = False
             notes = "single-document request"
 
+        if needs_multi_doc:
+            metadata_filter = {}
         if metadata_filter:
             top_k = max(self.config.min_top_k, min(top_k, 6))
             strategy = self.config.similarity_strategy
@@ -270,7 +272,10 @@ class Retriever:
         bm25_chunks: List[Chunk] = []
         bm25 = self._get_bm25(top_k=self.config.bm25_top_k)
         if bm25 is not None:
-            docs = bm25.get_relevant_documents(plan.query)
+            docs = bm25._get_relevant_documents(  # type: ignore[attr-defined]
+                plan.query,
+                run_manager=None,
+            )
             bm25_chunks = [_lc_doc_to_chunk(doc) for doc in docs]
 
         ranked_lists: List[tuple[List[Chunk], float]] = [

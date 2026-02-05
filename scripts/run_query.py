@@ -72,7 +72,9 @@ def _sanitize_answer(text: str) -> str:
 
 def _split_sentences(text: str) -> list[str]:
     # 문장 경계를 기준으로 자른 뒤 마침표를 유지한다.
-    parts = re.split(r"([.!?。！？]+)", text)
+    # 숫자 사이의 소수점(예: 5.5)은 문장 분리 대상에서 제외한다.
+    protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", text)
+    parts = re.split(r"([.!?。！？]+)", protected)
     # 문장 구분자를 보존하면서 문장 단위 리스트를 만든다.
     sentences: list[str] = []
     buf = ""
@@ -82,10 +84,10 @@ def _split_sentences(text: str) -> list[str]:
         buf += part
         if re.fullmatch(r"[.!?。！？]+", part):
             if buf.strip():
-                sentences.append(buf.strip())
+                sentences.append(buf.strip().replace("<DOT>", "."))
             buf = ""
     if buf.strip():
-        sentences.append(buf.strip())
+        sentences.append(buf.strip().replace("<DOT>", "."))
     return sentences
 
 

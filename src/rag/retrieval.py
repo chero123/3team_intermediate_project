@@ -113,6 +113,9 @@ class QueryAnalysisAgent:
             needs_multi_doc = False
             notes = "single-document request"
 
+        # 다문서 전략이면 메타데이터 필터를 끄고 회수 폭을 넓힌다.
+        if needs_multi_doc:
+            metadata_filter = {}
         # 메타데이터 필터가 있으면 후보 수를 줄이고 유사도 검색으로 단순화한다.
         if metadata_filter:
             top_k = max(self.config.min_top_k, min(top_k, 6))
@@ -404,7 +407,10 @@ class Retriever:
         bm25_chunks: List[Chunk] = []
         bm25 = self._get_bm25(top_k=self.config.bm25_top_k)
         if bm25 is not None:
-            docs = bm25.get_relevant_documents(plan.query)
+            docs = bm25._get_relevant_documents(  # type: ignore[attr-defined]
+                plan.query,
+                run_manager=None,
+            )
             bm25_chunks = [_lc_doc_to_chunk(doc) for doc in docs]
 
         ranked_lists: List[tuple[List[Chunk], float]] = [

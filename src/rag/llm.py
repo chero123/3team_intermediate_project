@@ -9,6 +9,15 @@ from .config import RAGConfig
 from .types import Chunk
 
 
+def _truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    trimmed = text[: max_chars - 3].rstrip()
+    return f"{trimmed}..."
+
+
 class LLM:
     def generate(
         self,
@@ -57,7 +66,7 @@ class VLLMLLM(LLM):
             model=model_path,
             tokenizer=model_path,
             tokenizer_mode="auto",
-            max_model_len=4096,
+            max_model_len=8192,
         )
         if quantization:
             # bitsandbytes 등 양자화 설정이 있을 때만 옵션을 추가한다.
@@ -99,7 +108,7 @@ class VLLMLLM(LLM):
 
 
 # Prompt Builders
-def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
+def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) -> str:
     """
     build_prompt는 RAG 프롬프트를 구성
 
@@ -111,28 +120,48 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
         str: 프롬프트 문자열
     """
     # 검색 결과 청크를 Source 라벨로 묶고, 메타데이터도 함께 노출한다.
-    context_blocks = []
+    context_blocks: List[str] = []
+    total_chars = 0
     for i, chunk in enumerate(context_chunks):
         meta = chunk.metadata or {}
         meta_lines = [f"{k}: {v}" for k, v in meta.items() if v is not None]
         meta_text = "\n".join(meta_lines)
+        if meta_text:
+            meta_text = _truncate_text(meta_text, config.context_meta_max_chars)
         block = f"[Source {i + 1}]"
         if meta_text:
             block += f"\n{meta_text}"
-        block += f"\n{chunk.text}"
+        chunk_text = _truncate_text(chunk.text, config.context_chunk_max_chars)
+        block += f"\n{chunk_text}"
+        if total_chars >= config.context_max_chars:
+            break
+        block_len = len(block)
+        if total_chars + block_len > config.context_max_chars:
+            remaining = config.context_max_chars - total_chars
+            if remaining <= 0:
+                break
+            block = _truncate_text(block, remaining)
+            context_blocks.append(block)
+            total_chars = config.context_max_chars
+            break
         context_blocks.append(block)
+        total_chars += block_len
     context = "\n\n".join(context_blocks)
     return f"""
 너는 문서 기반 요약 AI 어시스턴트다.
 오직 컨텍스트에 있는 사실만 사용하고 추측하지 않는다.
 가정, 가능성, 예시, 추론, 일반화 표현을 쓰지 않는다.
-질문에 필요한 정보만 골라 간결하게 문장으로 답한다.
+질문에 필요한 정보만 골라 간결하게 3문장으로 답한다.
 중복/군더더기 표현을 줄이고 핵심만 남긴다.
 각 문장은 마침표로 끝내고, 미완성 단어로 끝내지 않는다.
 요약, 결론 같은 라벨을 붙이지 않는다.
 제안서 문맥이므로 과거형 서술을 피하고 현재형으로 서술한다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
 컨텍스트에 없으면 모른다고만 말하라.
+
+숫자 표기 규칙:
+- 금액은 반드시 한글 화폐식으로 쓴다.
+- 예: 35,750,000원 -> 3천 5백 7십 5만원
 
 질문: {question}
 
@@ -158,7 +187,7 @@ def generate_answer(llm: LLM, config: RAGConfig, question: str, context_chunks: 
         str: 최종 답변
     """
     # 1) 질문 + 컨텍스트를 프롬프트로 결합
-    prompt = build_prompt(question, context_chunks)
+    prompt = build_prompt(question, context_chunks, config)
     # 2) LLM 호출 (토큰 상한/온도는 config 기준)
     return llm.generate(
         prompt=prompt,
@@ -201,8 +230,14 @@ def rewrite_answer(llm: LLM, config: RAGConfig, answer: str) -> str:
 문장형으로 자연스럽게 rewrite한다.
 각 문장은 마침표로 끝내고, 미완성 단어로 끝내지 않는다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
+3문장으로 rewrite한다.
+중복/군더더기 표현을 줄이고 핵심만 남긴다.
 내용을 모르면 '모른다'라고만 말하라.
 출력은 최종 문장만 작성한다. 라벨이나 설명을 출력하지 않는다.
+
+숫자 표기 규칙:
+- 금액은 반드시 한글 화폐식으로 쓴다.
+- 예: 35,750,000원 -> 3천 5백 7십 5만원
 
 원문:
 {answer}

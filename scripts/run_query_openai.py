@@ -115,7 +115,9 @@ def _split_sentences(text: str) -> list[str]:
         list[str]: 문장 리스트
     """
     # 구두점 토큰을 포함해 split하여 문장 경계를 유지한다.
-    parts = re.split(r"([.!?。！？]+)", text)
+    # 숫자 사이의 소수점(예: 5.5)은 문장 분리 대상에서 제외한다.
+    protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", text)
+    parts = re.split(r"([.!?。！？]+)", protected)
     sentences: list[str] = []
     # 버퍼에 누적해 구두점이 나오면 문장 확정
     buf = ""
@@ -125,11 +127,11 @@ def _split_sentences(text: str) -> list[str]:
         buf += part
         if re.fullmatch(r"[.!?。！？]+", part):
             if buf.strip():
-                sentences.append(buf.strip())
+                sentences.append(buf.strip().replace("<DOT>", "."))
             buf = ""
     # 마지막 버퍼 처리
     if buf.strip():
-        sentences.append(buf.strip())
+        sentences.append(buf.strip().replace("<DOT>", "."))
     return sentences
 
 

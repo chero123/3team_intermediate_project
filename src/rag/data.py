@@ -244,10 +244,10 @@ def _extract_pdf_images_with_vlm(path: str, config: RAGConfig) -> str:
         str: 이미지 기반 추출 텍스트 (페이지별 결합)
     """
     if fitz is None:
-        print(f"[VLM] fitz 미설치 → 이미지 렌더링 불가: {path}")
+        print(f"[VLM] fitz 미설치 -> 이미지 렌더링 불가: {path}")
         return ""
     if not config.qwen3_vl_enabled:
-        print(f"[VLM] disabled → 이미지 추출 스킵: {path}")
+        print(f"[VLM] disabled -> 이미지 추출 스킵: {path}")
         return ""
     try:
         doc = fitz.open(path)

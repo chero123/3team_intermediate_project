@@ -8,6 +8,15 @@ from openai import OpenAI
 from .config import RAGConfig
 from .types import Chunk
 
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    trimmed = text[: max_chars - 3].rstrip()
+    return f"{trimmed}..."
+
 # .env 파일이 있다면 환경 변수(OPENAI_API_KEY 등)를 로드한다.
 load_dotenv()
 
@@ -177,7 +186,7 @@ def _strip_rewrite_output(text: str) -> str:
     return cleaned
 
 # Prompt Builders
-def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
+def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) -> str:
     """
     질문과 컨텍스트 청크로 최종 프롬프트를 구성한다.
 
@@ -189,16 +198,32 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
         str: 모델 입력 프롬프트
     """
     # 청크를 출처 태그로 묶고 메타데이터도 함께 노출한다.
-    context_blocks = []
+    context_blocks: List[str] = []
+    total_chars = 0
     for i, chunk in enumerate(context_chunks):
         meta = chunk.metadata or {}
         meta_lines = [f"{k}: {v}" for k, v in meta.items() if v is not None]
         meta_text = "\n".join(meta_lines)
+        if meta_text:
+            meta_text = _truncate_text(meta_text, config.context_meta_max_chars)
         block = f"[출처 {i + 1}]"
         if meta_text:
             block += f"\n{meta_text}"
-        block += f"\n{chunk.text}"
+        chunk_text = _truncate_text(chunk.text, config.context_chunk_max_chars)
+        block += f"\n{chunk_text}"
+        if total_chars >= config.context_max_chars:
+            break
+        block_len = len(block)
+        if total_chars + block_len > config.context_max_chars:
+            remaining = config.context_max_chars - total_chars
+            if remaining <= 0:
+                break
+            block = _truncate_text(block, remaining)
+            context_blocks.append(block)
+            total_chars = config.context_max_chars
+            break
         context_blocks.append(block)
+        total_chars += block_len
     context = "\n\n".join(context_blocks)
     # 출력 형식(3문장/마침표/특수문자 제한)을 프롬프트로 강제한다.
     return f"""
@@ -212,6 +237,10 @@ def build_prompt(question: str, context_chunks: List[Chunk]) -> str:
 제안서 문맥이므로 과거형 서술을 피하고 현재형으로 서술한다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
 컨텍스트에 없으면 모른다고만 말하라.
+
+숫자 표기 규칙:
+- 금액은 반드시 한글 화폐식으로 쓴다.
+- 예: 35,750,000원 -> 3천 5백 7십 5만원
 
 질문: {question}
 
@@ -239,7 +268,7 @@ def generate_answer(
         str: 생성된 답변 텍스트
     """
     # 질문 + 컨텍스트를 프롬프트로 결합한다.
-    prompt = build_prompt(question, context_chunks)
+    prompt = build_prompt(question, context_chunks, config)
     # 생성 파라미터는 config 기준으로 전달한다.
     return llm.generate(
         prompt=prompt,
@@ -269,6 +298,10 @@ def rewrite_answer(llm: OpenAILLM, config: RAGConfig, answer: str) -> str:
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
 내용을 모르면 '모른다'라고만 말하라.
 출력은 최종 문장만 작성한다. 라벨이나 설명을 출력하지 않는다.
+
+숫자 표기 규칙:
+- 금액은 반드시 한글 화폐식으로 쓴다.
+- 예: 35,750,000원 -> 3천 5백 7십 5만원
 
 원문:
 {answer}
