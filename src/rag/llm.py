@@ -9,10 +9,6 @@ from .config import RAGConfig
 from .types import Chunk
 
 
-def _truncate_text(text: str, max_chars: int) -> str:
-    return text
-
-
 class LLM:
     def generate(
         self,
@@ -103,7 +99,13 @@ class VLLMLLM(LLM):
 
 
 # Prompt Builders
-def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) -> str:
+def build_prompt(
+    question: str,
+    context_chunks: List[Chunk],
+    config: RAGConfig,
+    previous_turn: str | None = None,
+    previous_docs: list[str] | None = None,
+) -> str:
     """
     build_prompt는 RAG 프롬프트를 구성
 
@@ -127,16 +129,26 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
         block += f"\n{chunk_text}"
         context_blocks.append(block)
     context = "\n\n".join(context_blocks)
+    previous_block = ""
+    if previous_turn:
+        previous_block = f"\n\n[이전 턴]\n{previous_turn}\n이전 턴은 참고용이며 현재 질문을 우선한다."
+
+    previous_docs_block = ""
+    if previous_docs:
+        doc_list = "\n".join(previous_docs)
+        previous_docs_block = f"\n\n[이전 문서]\n{doc_list}"
+
     return f"""
 너는 문서 기반 요약 AI 어시스턴트다.
 오직 컨텍스트에 있는 사실만 사용하고 추측하지 않는다.
 가정, 가능성, 예시, 추론, 일반화 표현을 쓰지 않는다.
-질문에 필요한 정보만 골라 간결하게 3문장으로 답한다.
+질문에 필요한 정보만 골라 간결하게 답한다.
 중복/군더더기 표현을 줄이고 핵심만 남긴다.
 각 문장은 마침표로 끝내고, 미완성 단어로 끝내지 않는다.
 요약, 결론 같은 라벨을 붙이지 않는다.
 제안서 문맥이므로 과거형 서술을 피하고 현재형으로 서술한다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
+최대 5문장, 5줄 이내로만 답한다.
 컨텍스트에 없으면 "죄송합니다. 확인할 수 없습니다"라고만 말하라.
 
 영어 표기 규칙:
@@ -148,6 +160,8 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
 - 예: 35,750,000원 -> 3천 5백 7십 5만원
 
 질문: {question}
+{previous_block}
+{previous_docs_block}
 
 컨텍스트:
 {context}
@@ -157,7 +171,14 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
 
 
 # Answer Generation
-def generate_answer(llm: LLM, config: RAGConfig, question: str, context_chunks: List[Chunk]) -> str:
+def generate_answer(
+    llm: LLM,
+    config: RAGConfig,
+    question: str,
+    context_chunks: List[Chunk],
+    previous_turn: str | None = None,
+    previous_docs: list[str] | None = None,
+) -> str:
     """
     generate_answer는 LLM을 호출해 최종 답변을 만든다
 
@@ -171,7 +192,13 @@ def generate_answer(llm: LLM, config: RAGConfig, question: str, context_chunks: 
         str: 최종 답변
     """
     # 1) 질문 + 컨텍스트를 프롬프트로 결합
-    prompt = build_prompt(question, context_chunks, config)
+    prompt = build_prompt(
+        question,
+        context_chunks,
+        config,
+        previous_turn=previous_turn,
+        previous_docs=previous_docs,
+    )
     # 2) LLM 호출 (토큰 상한/온도는 config 기준)
     return llm.generate(
         prompt=prompt,

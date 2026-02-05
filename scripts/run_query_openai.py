@@ -117,6 +117,8 @@ def _split_sentences(text: str) -> list[str]:
     # 구두점 토큰을 포함해 split하여 문장 경계를 유지한다.
     # 숫자 사이의 소수점(예: 5.5)은 문장 분리 대상에서 제외한다.
     protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", text)
+    # 파일 확장자(.hwp/.pdf/.docx)는 문장 분리 대상에서 제외한다.
+    protected = re.sub(r"\.(hwp|pdf|docx)\b", r"<EXTDOT>\1", protected, flags=re.IGNORECASE)
     parts = re.split(r"([.!?。！？]+)", protected)
     sentences: list[str] = []
     # 버퍼에 누적해 구두점이 나오면 문장 확정
@@ -127,11 +129,13 @@ def _split_sentences(text: str) -> list[str]:
         buf += part
         if re.fullmatch(r"[.!?。！？]+", part):
             if buf.strip():
-                sentences.append(buf.strip().replace("<DOT>", "."))
+                restored = buf.strip().replace("<EXTDOT>", ".").replace("<DOT>", ".")
+                sentences.append(restored)
             buf = ""
     # 마지막 버퍼 처리
     if buf.strip():
-        sentences.append(buf.strip().replace("<DOT>", "."))
+        restored = buf.strip().replace("<EXTDOT>", ".").replace("<DOT>", ".")
+        sentences.append(restored)
     return sentences
 
 

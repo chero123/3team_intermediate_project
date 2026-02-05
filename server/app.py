@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 import re
-import time
 import uuid
 from typing import Literal
 
@@ -21,8 +20,6 @@ from pydantic import BaseModel
 from rag.pipeline import RAGPipeline
 from rag.openai_pipeline import OpenAIRAGPipeline
 from tts_runtime.infer_onnx import infer_tts_onnx
-import numpy as np
-import soundfile as sf
 
 
 class AskRequest(BaseModel):
@@ -40,6 +37,8 @@ class AskRequest(BaseModel):
     provider: Literal["local", "openai"] | None = None
     # TTS 사용 여부(확장용)
     tts: bool | None = None
+    # 세션 식별자(멀티턴 메모리용)
+    session_id: str | None = None
 
 
 def _build_pipeline(provider: str):
@@ -73,15 +72,16 @@ def get_pipeline(provider: str):
     return _PIPELINE_CACHE[provider]
 
 
-def ask(question: str, provider: str | None = None) -> str:
+def ask(question: str, provider: str | None = None, session_id: str | None = None) -> str:
     """
     질문을 파이프라인에 전달하고 답변을 반환한다.
     """
     # provider 지정
     mode = provider or os.getenv("RAG_PROVIDER", "local")
     pipeline = get_pipeline(mode)
+    # session_id는 SQLite 세션 메모리의 키로 사용되어 멀티턴 문맥을 유지한다.
     # 파이프라인의 ask는 문자열 답변을 반환한다.
-    return pipeline.ask(question)  # type: ignore[no-any-return]
+    return pipeline.ask(question, session_id=session_id)  # type: ignore[no-any-return]
 
 
 def _tts_paths():
@@ -118,44 +118,13 @@ def tts_only(text: str, device: str = "cuda") -> str:
     return out_path
 
 
-def _append_wav(src_path: str, dst_path: str) -> str:
-    """
-    src_path의 wav를 dst_path에 이어붙인다.
-    """
-    if not os.path.exists(src_path):
-        return dst_path
-    audio, sr = sf.read(src_path)
-    audio = np.asarray(audio)
-    if os.path.exists(dst_path):
-        existing, sr2 = sf.read(dst_path)
-        if sr2 != sr:
-            # 샘플레이트가 다르면 이어붙이지 않고 덮어쓴다.
-            sf.write(dst_path, audio, sr)
-            return dst_path
-        merged = np.concatenate([np.asarray(existing), audio])
-        sf.write(dst_path, merged, sr)
-        return dst_path
-    sf.write(dst_path, audio, sr)
-    return dst_path
-
-
-def _wav_duration_seconds(path: str) -> float:
-    """
-    wav 파일 길이를 초 단위로 반환한다.
-    """
-    try:
-        with sf.SoundFile(path) as f:
-            return float(len(f)) / float(f.samplerate)
-    except Exception:
-        return 0.0
-
-
-def ask_with_tts(question: str, provider: str | None = None):
+def ask_with_tts(question: str, provider: str | None = None, session_id: str | None = None):
     """
     질문 -> 답변 생성 -> TTS wav 생성까지 수행한다.
     """
     # 1) 텍스트 답변 생성
-    answer = ask(question, provider)
+    # session_id는 SQLite 세션 메모리에서 문맥을 복원하는 데 사용된다.
+    answer = ask(question, provider, session_id=session_id)
     # 2) TTS 모델 경로 준비
     model_path, bert_path, config_path, out_path = _tts_paths()
     # 3) TTS 수행 (wav 저장 포함)
@@ -185,7 +154,8 @@ def ask_api(payload: AskRequest):
     API 엔드포인트: 질문 -> 답변
     """
     # REST API용 단순 텍스트 응답
-    answer = ask(payload.question, payload.provider)
+    # session_id가 있으면 동일 세션의 검색 문서를 재활용한다.
+    answer = ask(payload.question, payload.provider, payload.session_id)
     return {"answer": answer}
 
 
@@ -195,7 +165,8 @@ def ask_tts_api(payload: AskRequest):
     API 엔드포인트: 질문 -> 답변 -> TTS
     """
     # REST API용 TTS 응답
-    answer, wav_path = ask_with_tts(payload.question, payload.provider)
+    # session_id가 있으면 동일 세션의 검색 문서를 재활용한다.
+    answer, wav_path = ask_with_tts(payload.question, payload.provider, payload.session_id)
     return {"answer": answer, "wav_path": wav_path}
 
 
@@ -203,27 +174,12 @@ def build_gradio():
     """
     Gradio UI 구성 (API와 동일한 ask 함수 사용)
     """
-    def _split_sentences(text: str) -> list[str]:
-        """
-        문장을 간단히 분리한다. 숫자 소수점은 보호한다.
-        """
-        protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", text)
-        parts = re.split(r"([.!?。！？]+)", protected)
-        sentences: list[str] = []
-        buf = ""
-        for part in parts:
-            if not part:
-                continue
-            buf += part
-            if re.fullmatch(r"[.!?。！？]+", part):
-                if buf.strip():
-                    sentences.append(buf.strip().replace("<DOT>", "."))
-                buf = ""
-        if buf.strip():
-            sentences.append(buf.strip().replace("<DOT>", "."))
-        return sentences
-
-    def chat_with_tts(message: str, history: list[dict[str, str]], provider_choice: str):
+    def chat_with_tts(
+        message: str,
+        history: list[dict[str, str]],
+        provider_choice: str,
+        session_id: str,
+    ):
         """
         Gradio Chatbot 콜백:
         - 입력 메시지로 답변 생성
@@ -233,7 +189,8 @@ def build_gradio():
         history = history or []
         history.append({"role": "user", "content": message})
         # 텍스트 답변을 먼저 만들고, 텍스트를 즉시 표시한다.
-        answer = ask(message, provider_choice)
+        # session_id는 SQLite 세션 메모리에 저장된 문서를 불러오기 위한 키다.
+        answer = ask(message, provider_choice, session_id=session_id)
         history.append({"role": "assistant", "content": answer})
         # 텍스트는 먼저 출력, 오디오는 이후에 업데이트한다.
         yield history, None
@@ -382,15 +339,17 @@ def build_gradio():
                         audio = gr.Audio(label="", autoplay=True)
 
         # 버튼 클릭 -> 메시지 처리
+        session_state = gr.State(value=uuid.uuid4().hex)
+
         send_btn.click(
             fn=chat_with_tts,
-            inputs=[message, chatbot, provider],
+            inputs=[message, chatbot, provider, session_state],
             outputs=[chatbot, audio],
         )
         # Enter 제출 -> 메시지 처리
         message.submit(
             fn=chat_with_tts,
-            inputs=[message, chatbot, provider],
+            inputs=[message, chatbot, provider, session_state],
             outputs=[chatbot, audio],
         )
         # 초기화 -> 히스토리/오디오 리셋
@@ -403,7 +362,6 @@ app = gr.mount_gradio_app(app, demo, path="/ui")
 
 
 def main() -> None:
-
     # Uvicorn으로 FastAPI 실행
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

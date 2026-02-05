@@ -50,7 +50,7 @@ class RAGConfig:
     # LLM 로컬 경로 지정
     llm_model_path: str = "models/A.X-4.0-Light"
     # 임베딩 로컬 경로 지정
-    embedding_model_path: str = "models/bge-m3-ko"
+    embedding_model_path: str = "models/ko_sroberta"
     # 랭커 로컬 경로 지정
     rerank_model_path: str = "models/bge-reranker-v2-m3-ko"
     # 실행 디바이스 설정
@@ -110,6 +110,10 @@ class RAGConfig:
     chunk_preview_path: str = "data/chunk_preview.json"
     # vLLM용 토크나이저 캐시 경로 지정
     tokenizer_cache_dir: str = "data/tokenizer_cache"
+    # 세션 메모리(SQLite) 경로 지정
+    memory_db_path: str = "data/session_memory.sqlite"
+    # 세션 메모리를 프로세스 시작 시 초기화할지 여부
+    memory_clear_on_start: bool = True
 
     # Qwen3-VL 로컬 모델 경로
     qwen3_vl_model_path: str = "models/qwen3-vl-8b"
@@ -131,3 +135,14 @@ class RAGConfig:
     qwen3_vl_min_variance: float = 15.0
     # 도표/텍스트가 없는 이미지 제거 기준
     qwen3_vl_min_edge_energy: float = 0.01
+
+    # 세션 메모리 리셋 키워드 (명시적으로 문맥 초기화)
+    memory_reset_keywords: list[str] = field(
+        default_factory=lambda: ["새 문서", "다른 문서", "리셋", "reset", "새로", "초기화"]
+    )
+    # 세션 메모리 후속 질문 키워드 (문맥 유지 힌트)
+    memory_followup_keywords: list[str] = field(
+        default_factory=lambda: ["그거", "그것", "앞서", "방금", "둘 중", "추가로", "더", "이어서"]
+    )
+    # 질문 간 유사도 임계값 (이보다 낮으면 문맥 전환으로 판단)
+    memory_similarity_threshold: float = 0.7

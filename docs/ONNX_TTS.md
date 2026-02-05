@@ -44,6 +44,8 @@
 | `length_scale` | float32 | scalar | 발화 속도 |
 
 > `bert`/`ja_bert` 채널 크기(1024/768)는 현재 코드 기준이며, ONNX 모델 설계와 일치한다.
+> 기존 MeloTTS는 다국어 지원 모델이기 때문에 bert와 ja_bert를 받는데, ja라는 글자때문에 일본어용 bert일 것 같지만 실상은 언어에 따라 분류되며,
+> 한국어 bert 특징은 ja_bert로 들어간다. (즉, 여기서 일반 bert는 그냥 명분상 거기에 있는 것(?))
 
 ### 3) TTS ONNX 출력
 - `audio`: `float32`, shape `[1, 1, N]` → 최종 반환은 `[N]` 파형

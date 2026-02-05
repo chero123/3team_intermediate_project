@@ -21,7 +21,7 @@ MODEL_ASSETS_DIR = RAW_DIR / "models"
 
 MODELS = {  # 다운로드할 모델 목록
     # "bge-m3-ko": "dragonkue/BGE-m3-ko",  # 임베딩 모델
-    "ko_sroberta": "jhgan/ko-sroberta-multitask",  # 임베딩 모델
+    "ko_sroberta": "jhgan/ko-sroberta-multitask",  # 임베딩 대체 모델
     # "bge-reranker-v2-m3": "BAAI/bge-reranker-v2-m3",  # 리랭커 모델
     # "bge-reranker-v2-m3-ko": "dragonkue/bge-reranker-v2-m3-ko",  # 리랭커 모델2
     # "YanoljaNEXT-EEVE-7B-v2": "YanoljaNEXT/YanoljaNEXT-EEVE-7B-v2",  # LLM

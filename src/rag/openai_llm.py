@@ -8,10 +8,6 @@ from openai import OpenAI
 from .config import RAGConfig
 from .types import Chunk
 
-
-def _truncate_text(text: str, max_chars: int) -> str:
-    return text
-
 # .env 파일이 있다면 환경 변수(OPENAI_API_KEY 등)를 로드한다.
 load_dotenv()
 
@@ -181,7 +177,13 @@ def _strip_rewrite_output(text: str) -> str:
     return cleaned
 
 # Prompt Builders
-def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) -> str:
+def build_prompt(
+    question: str,
+    context_chunks: List[Chunk],
+    config: RAGConfig,
+    previous_turn: str | None = None,
+    previous_docs: list[str] | None = None,
+) -> str:
     """
     질문과 컨텍스트 청크로 최종 프롬프트를 구성한다.
 
@@ -205,7 +207,16 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
         block += f"\n{chunk_text}"
         context_blocks.append(block)
     context = "\n\n".join(context_blocks)
-    # 출력 형식(3문장/마침표/특수문자 제한)을 프롬프트로 강제한다.
+    previous_block = ""
+    if previous_turn:
+        previous_block = f"\n\n[이전 턴]\n{previous_turn}\n이전 턴은 참고용이며 현재 질문을 우선한다."
+
+    previous_docs_block = ""
+    if previous_docs:
+        doc_list = "\n".join(previous_docs)
+        previous_docs_block = f"\n\n[이전 문서]\n{doc_list}"
+
+    # 출력 형식(마침표/특수문자 제한)을 프롬프트로 강제한다.
     return f"""
 너는 문서 기반 요약 AI 어시스턴트다.
 오직 컨텍스트에 있는 사실만 사용하고 추측하지 않는다.
@@ -216,6 +227,7 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
 요약, 결론 같은 라벨을 붙이지 않는다.
 제안서 문맥이므로 과거형 서술을 피하고 현재형으로 서술한다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
+최대 5문장, 5줄 이내로만 답한다.
 컨텍스트에 없으면 "죄송합니다. 확인할 수 없습니다"라고만 말하라.
 
 영어 표기 규칙:
@@ -227,6 +239,8 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
 - 예: 35,750,000원 -> 3천 5백 7십 5만원
 
 질문: {question}
+{previous_block}
+{previous_docs_block}
 
 컨텍스트:
 {context}
@@ -238,6 +252,8 @@ def generate_answer(
     config: RAGConfig,
     question: str,
     context_chunks: List[Chunk],
+    previous_turn: str | None = None,
+    previous_docs: list[str] | None = None,
 ) -> str:
     """
     RAG 컨텍스트로 최종 답변을 생성한다.
@@ -252,7 +268,13 @@ def generate_answer(
         str: 생성된 답변 텍스트
     """
     # 질문 + 컨텍스트를 프롬프트로 결합한다.
-    prompt = build_prompt(question, context_chunks, config)
+    prompt = build_prompt(
+        question,
+        context_chunks,
+        config,
+        previous_turn=previous_turn,
+        previous_docs=previous_docs,
+    )
     # 생성 파라미터는 config 기준으로 전달한다.
     return llm.generate(
         prompt=prompt,

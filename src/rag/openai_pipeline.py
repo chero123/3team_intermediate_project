@@ -7,13 +7,16 @@ OpenAI RAG 파이프라인 모듈
 - analyze_query → retrieve → generate → rewrite
 """
 
+import uuid
 from typing import Optional, TypedDict
 
+import numpy as np
 from langgraph.graph import END, START, StateGraph
 
 from .config import RAGConfig
 from .embeddings import create_embeddings
 from .indexing import FaissVectorStore
+from .memory_store import SessionMemoryStore
 from .openai_llm import OpenAILLM, generate_answer, rewrite_answer
 from .openai_retrieval import CrossEncoderReranker, RetrievalOrchestrator, Retriever, Reranker
 from .types import ConversationState, RetrievalPlan, RetrievalResult
@@ -28,6 +31,8 @@ class RAGState(TypedDict):
 
     # 사용자 질문 원문
     question: str
+    # 세션 식별자
+    session_id: str
     # 질문 분석 결과로 생성된 검색 계획
     plan: RetrievalPlan
     # 벡터 검색 결과(청크 + 점수/플랜)
@@ -94,10 +99,17 @@ class OpenAIRAGPipeline:
         self.orchestrator = RetrievalOrchestrator(self.config, llm=self.small_llm)
         # 대화 히스토리 저장소
         self.state = ConversationState()
+        # 세션별 문서 기억용 SQLite 저장소
+        self.memory = SessionMemoryStore(
+            self.config.memory_db_path,
+            clear_on_start=self.config.memory_clear_on_start,
+        )
+        # 기본 세션 ID
+        self._session_id = uuid.uuid4().hex
         # LangGraph 파이프라인 빌드
         self.graph = self._build_graph()
 
-    def ask(self, question: str) -> str:
+    def ask(self, question: str, session_id: Optional[str] = None) -> str:
         """
         질문을 받아 RAG 파이프라인으로 처리하고 최종 답변을 반환한다.
 
@@ -107,13 +119,22 @@ class OpenAIRAGPipeline:
         Returns:
             str: 리라이트된 최종 답변
         """
+        sid = session_id or self._session_id
         # 그래프 실행 → 단계별 결과를 합친 상태 딕셔너리 반환
-        result = self.graph.invoke({"question": question})
+        result = self.graph.invoke({"question": question, "session_id": sid})
         # 리라이트 결과가 있으면 우선 사용
         answer = result.get("rewritten") or result.get("answer", "")
         # 대화 히스토리 업데이트
         self.state.append("user", question)
         self.state.append("assistant", answer)
+        plan = result.get("plan")
+        if plan is not None:
+            self.memory.update_state(
+                sid,
+                last_question=question,
+                last_answer=answer,
+                last_question_type=plan.question_type,
+            )
         return answer
 
     def _build_graph(self) -> StateGraph:
@@ -151,6 +172,36 @@ class OpenAIRAGPipeline:
         """
         # 오케스트레이터가 질문/대화 상태를 보고 플랜을 생성한다.
         plan = self.orchestrator.plan(state["question"], self.state)
+        # 세션 메모리 기반의 followup 판정(명시 키워드 + 짧은 질문 + 유사도) 혼합 규칙
+        last_question = self.memory.get_last_question(state["session_id"])
+        if last_question:
+            q = state["question"]
+            # 사용자가 명시적으로 문맥 리셋을 요청하면 필터를 비우고 새 질문으로 처리한다.
+            if any(keyword in q for keyword in self.config.memory_reset_keywords):
+                self.memory.clear_session_docs(state["session_id"])
+            else:
+                followup_hint = any(keyword in q for keyword in self.config.memory_followup_keywords)
+                if len(q) < 30:
+                    followup_hint = True
+                if not followup_hint:
+                    # 질문 유사도가 낮으면 문맥 전환으로 보고 필터를 해제한다.
+                    q_vec = np.asarray(self.embeddings.embed_query(q), dtype=np.float32)
+                    last_vec = np.asarray(self.embeddings.embed_query(last_question), dtype=np.float32)
+                    denom = float(np.linalg.norm(q_vec) * np.linalg.norm(last_vec)) or 1.0
+                    similarity = float(np.dot(q_vec, last_vec) / denom)
+                    if similarity < self.config.memory_similarity_threshold:
+                        self.memory.clear_session_docs(state["session_id"])
+                        return {"plan": plan}
+                # followup으로 확정되면 기존 문서 범위를 재사용한다.
+                plan.question_type = "followup"
+                plan.needs_multi_doc = False
+                plan.strategy = self.config.similarity_strategy
+                plan.metadata_filter = {}
+                plan.notes = f"{plan.notes}; followup via session memory"
+                # SQLite 세션 메모리에서 직전 검색 문서 ID를 불러와 후속 질문 범위를 제한한다.
+                doc_ids = self.memory.load_doc_ids(state["session_id"])
+                if doc_ids:
+                    plan.doc_id_filter = doc_ids
         return {"plan": plan}
 
     def _node_retrieve(self, state: RAGState) -> dict:
@@ -165,6 +216,14 @@ class OpenAIRAGPipeline:
         """
         # 검색기에서 청크/점수 결과를 가져온다.
         retrieval = self.retriever.retrieve(state["plan"])
+        doc_ids: list[str] = []
+        for chunk in retrieval.chunks:
+            doc_id = chunk.metadata.get("doc_id")
+            if doc_id and doc_id not in doc_ids:
+                doc_ids.append(doc_id)
+        if doc_ids:
+            # SQLite 세션 메모리에 현재 검색 문서 ID를 저장해 다음 턴에서 재사용한다.
+            self.memory.save_doc_ids(state["session_id"], doc_ids)
         return {"retrieval": retrieval}
 
     def _node_generate(self, state: RAGState) -> dict:
@@ -177,12 +236,20 @@ class OpenAIRAGPipeline:
         Returns:
             dict: {"answer": str}
         """
+        # 이전 턴은 참고용 문맥으로만 제공한다.
+        last_question, last_answer = self.memory.get_last_turn(state["session_id"])
+        previous_turn = ""
+        if last_question and last_answer:
+            previous_turn = f"질문: {last_question}\n답변: {last_answer}"
+        previous_docs = self.memory.load_doc_ids(state["session_id"])
         # 본문 생성은 큰 모델로 수행한다.
         answer = generate_answer(
             self.llm,
             self.config,
             state["question"],
             state["retrieval"].chunks,
+            previous_turn=previous_turn or None,
+            previous_docs=previous_docs or None,
         )
         return {"answer": answer}
 

@@ -218,6 +218,7 @@ class RetrievalOrchestrator:
             top_k=analysis.top_k,
             strategy=analysis.strategy,
             metadata_filter=analysis.metadata_filter,
+            question_type=analysis.question_type,
             needs_multi_doc=analysis.needs_multi_doc,
             notes=analysis.notes,
         )
@@ -377,6 +378,8 @@ class Retriever:
                 top_k=plan.top_k,
                 metadata_filter=plan.metadata_filter,
             )
+            # 세션 메모리에서 온 문서 ID 필터가 있으면 결과를 제한한다.
+            chunks = self._apply_doc_id_filter(chunks, plan.doc_id_filter)
 
         # 리랭커가 있으면 검색 결과를 한 번 더 정렬한다.
         if self.reranker is not None:
@@ -412,6 +415,11 @@ class Retriever:
                 run_manager=None,
             )
             bm25_chunks = [_lc_doc_to_chunk(doc) for doc in docs]
+
+        # 세션 메모리에서 온 문서 ID 필터가 있으면 각 랭킹을 제한한다.
+        sim_chunks = self._apply_doc_id_filter(sim_chunks, plan.doc_id_filter)
+        mmr_chunks = self._apply_doc_id_filter(mmr_chunks, plan.doc_id_filter)
+        bm25_chunks = self._apply_doc_id_filter(bm25_chunks, plan.doc_id_filter)
 
         ranked_lists: List[tuple[List[Chunk], float]] = [
             (sim_chunks, self.config.rrf_dense_weight),
@@ -456,3 +464,13 @@ class Retriever:
         if self._bm25 is not None:
             self._bm25.k = top_k
         return self._bm25
+
+    def _apply_doc_id_filter(self, chunks: List[Chunk], doc_id_filter: Optional[List[str]]) -> List[Chunk]:
+        """
+        doc_id_filter가 있으면 해당 문서 ID만 남긴다.
+        """
+        if not doc_id_filter:
+            return chunks
+        allow = set(doc_id_filter)
+        filtered = [chunk for chunk in chunks if chunk.metadata.get("doc_id") in allow]
+        return filtered or chunks

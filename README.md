@@ -24,17 +24,17 @@ uv sync
 
 - vLLM + 4bits(배포 최적화 옵션)로 실행할 시, GPT API 사용 버전에 거의 근접한 속도를 구현할 수 있다.
 - 다만, 프롬프트 준수율은 GPT가 우수하다.
+- 웹 UI로 vLLM을 실행 시 고성능 컴퓨터가 요구된다.
 - GPT-5 계열은 추론 모델이라 GPT-4 계열과 달리 높은 토큰 수 상한이 필요
 - CLI에서 run_query 실행 시 음성에 잡음이 끼는 현상이 있는데, 실제 생성된 음성 파일과 WebUI 등으로 확인 시에는 잡음이 없다.
 - Gradio, Streamlit과 같은 데모 프레임워크로는 실시간 합성을 실현할 수 없다.
 - 실시간 음성 합성을 재현하려면 FastAPI + 커스텀 프론트나 다른 방식을 사용해야 한다.
 
 ## 2026-02-04기준 CONFIG 스냅샷
-아래는 `src/rag/config.py` 기준의 기본값이다.
-현재 컨텍스트 구성은 SIMILARITY, BM25, MMR, RERANK, RRF를 모두 사용한다.
-GPT API 환경에서는 문제 없으나, vLLM의 경우 RTX 5080 16GB 환경 기준 프롬프트 길이가 길어져 max_model_len 초과로 우주 폭발 당할 수 있다.
-BM25를 추가하기 전에는 아래 설정으로 vLLM RAG 시스템을 구동할 수 있었으나, 2026-02-05에 BM25를 추가하며 
-컨텍스트 길이가 증가하면서 프롬프트 길이가 max_model_len 초과를 일으키고 있다.
+- 아래는 `src/rag/config.py` 기준의 기본값이다.
+- 컨텍스트 구성은 SIMILARITY, BM25(신규 추가), MMR, RERANK, RRF를 모두 사용한다.
+- GPT API 환경에서는 문제 없으나, vLLM의 경우 RTX 5080 16GB 환경 기준 프롬프트 길이가 길어져 max_model_len 초과로 우주 폭발 당할 수 있다.
+- BM25를 추가하기 전에는 아래 설정으로 vLLM RAG 시스템을 구동할 수 있었으나, 2026-02-05에 BM25를 추가하며 컨텍스트 길이가 증가하면서 프롬프트 길이가 max_model_len 초과를 일으키고 있다.
 
 ```text
 chunk_size=800
@@ -98,7 +98,7 @@ mmr_candidate_pool=10
 
 ## 추후 작업
 
-- 현재 유사도, MMR, BM25, RRF, Cross Rerank를 전부 사용한 덕에 속도 측면에 병목이 확인된다.
+- ko-sroberta로 임베딩 모델 교체
 - 웹 UI로 vLLM을 실행 시 고성능 컴퓨터가 요구된다.
 (RAM 부담을 낮추려면 model max lengh 등 vLLM 설정을 조정하거나 k 값을 줄여 컨텍스트 길이를 낮추어야 한다)
 - 성능을 어느 정도 양보해야 할 수 있다.

@@ -11,6 +11,7 @@ FAISS 인덱싱 및 상태 관리 모듈
 
 import json
 import pickle
+import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -269,6 +270,10 @@ class Indexer:
         """
         if not chunks:
             return
+        # bm25 저장 경로가 없으면 생성한다.
+        bm25_dir = os.path.dirname(self.config.bm25_index_path)
+        if bm25_dir:
+            os.makedirs(bm25_dir, exist_ok=True)
         docs = [
             LCDocument(page_content=c.text, metadata={**c.metadata, "chunk_id": c.id})
             for c in chunks
