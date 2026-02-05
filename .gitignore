@@ -8,6 +8,11 @@ __pycache__/
 # data (원본/결과물)
 data/
 data_parsed/
+files/
+final_docs/
+pdf_out/
+pdf_test/
+log/
 
 # env
 .env
