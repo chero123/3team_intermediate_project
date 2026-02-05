@@ -21,7 +21,7 @@ class RAGConfig:
     chunk_overlap: int = 120
 
     # 최대 검색 결과 수 제한 (지나친 컨텍스트 팽창 방지)
-    max_top_k: int = 12
+    max_top_k: int = 5
     # 최소 검색 결과 수 보장 (컨텍스트 부족 방지)
     min_top_k: int = 3
 
@@ -47,13 +47,6 @@ class RAGConfig:
             "원문",
         ]
     )
-    # 컨텍스트 전체 길이 상한 (프롬프트 과장 방지, 문자 수 기준)
-    context_max_chars: int = 12000
-    # 청크 텍스트 단일 길이 상한 (문자 수 기준)
-    context_chunk_max_chars: int = 1200
-    # 메타데이터 단일 값 길이 상한 (문자 수 기준)
-    context_meta_max_chars: int = 400
-
     # LLM 로컬 경로 지정
     llm_model_path: str = "models/A.X-4.0-Light"
     # 임베딩 로컬 경로 지정
@@ -71,7 +64,7 @@ class RAGConfig:
     # OpenAI 모델 이름
     openai_model: str = "gpt-5-mini"
     # OpenAI Gpt-5 계열용 맥스 토큰 설정
-    openai_gpt5_max_tokens: int = 800
+    openai_gpt5_max_tokens: int = 1000
 
     # 임베딩 배치 크기 설정 (GPU 메모리와 속도 균형)
     embedding_batch_size: int = 32
@@ -83,13 +76,13 @@ class RAGConfig:
     # RRF에서 MMR 가중치
     rrf_mmr_weight: float = 1.0
     # BM25 검색 결과 수 (키워드 매칭 신호 확보)
-    bm25_top_k: int = 30
+    bm25_top_k: int = 8
     # RRF에서 BM25 가중치 (dense 결과 대비 영향도)
     rrf_bm25_weight: float = 1.0
     # MMR 가중치 설정 (관련성 vs 다양성 균형)
     mmr_lambda: float = 0.7
     # MMR 후보 풀 크기 설정 (다양성 확보용 후보 수)
-    mmr_candidate_pool: int = 30
+    mmr_candidate_pool: int = 10
 
     # 리라이트용 생성 토큰 수
     rewrite_max_tokens: int = 480

@@ -10,12 +10,7 @@ from .types import Chunk
 
 
 def _truncate_text(text: str, max_chars: int) -> str:
-    if max_chars <= 0:
-        return ""
-    if len(text) <= max_chars:
-        return text
-    trimmed = text[: max_chars - 3].rstrip()
-    return f"{trimmed}..."
+    return text
 
 
 class LLM:
@@ -66,7 +61,7 @@ class VLLMLLM(LLM):
             model=model_path,
             tokenizer=model_path,
             tokenizer_mode="auto",
-            max_model_len=8192,
+            max_model_len=12288,    # 상황에 따라 조정 필요 (기본값은 8192: 너무 키우면 VRAM이 융단 폭격 당할 수 있음)
         )
         if quantization:
             # bitsandbytes 등 양자화 설정이 있을 때만 옵션을 추가한다.
@@ -121,31 +116,16 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
     """
     # 검색 결과 청크를 Source 라벨로 묶고, 메타데이터도 함께 노출한다.
     context_blocks: List[str] = []
-    total_chars = 0
     for i, chunk in enumerate(context_chunks):
         meta = chunk.metadata or {}
         meta_lines = [f"{k}: {v}" for k, v in meta.items() if v is not None]
         meta_text = "\n".join(meta_lines)
-        if meta_text:
-            meta_text = _truncate_text(meta_text, config.context_meta_max_chars)
         block = f"[Source {i + 1}]"
         if meta_text:
             block += f"\n{meta_text}"
-        chunk_text = _truncate_text(chunk.text, config.context_chunk_max_chars)
+        chunk_text = chunk.text
         block += f"\n{chunk_text}"
-        if total_chars >= config.context_max_chars:
-            break
-        block_len = len(block)
-        if total_chars + block_len > config.context_max_chars:
-            remaining = config.context_max_chars - total_chars
-            if remaining <= 0:
-                break
-            block = _truncate_text(block, remaining)
-            context_blocks.append(block)
-            total_chars = config.context_max_chars
-            break
         context_blocks.append(block)
-        total_chars += block_len
     context = "\n\n".join(context_blocks)
     return f"""
 너는 문서 기반 요약 AI 어시스턴트다.
@@ -157,7 +137,11 @@ def build_prompt(question: str, context_chunks: List[Chunk], config: RAGConfig) 
 요약, 결론 같은 라벨을 붙이지 않는다.
 제안서 문맥이므로 과거형 서술을 피하고 현재형으로 서술한다.
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
-컨텍스트에 없으면 모른다고만 말하라.
+컨텍스트에 없으면 "죄송합니다. 확인할 수 없습니다"라고만 말하라.
+
+영어 표기 규칙:
+- 영어 단어는 한국어 음역으로만 표기한다.
+- 예: dashboard -> 대시보드, dataset -> 데이터셋, pipeline -> 파이프라인, system -> 시스템.
 
 숫자 표기 규칙:
 - 금액은 반드시 한글 화폐식으로 쓴다.
@@ -232,8 +216,12 @@ def rewrite_answer(llm: LLM, config: RAGConfig, answer: str) -> str:
 괄호나 특수문자를 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성한다.
 3문장으로 rewrite한다.
 중복/군더더기 표현을 줄이고 핵심만 남긴다.
-내용을 모르면 '모른다'라고만 말하라.
+내용을 모르면 "죄송합니다. 확인할 수 없습니다"라고만 말하라.
 출력은 최종 문장만 작성한다. 라벨이나 설명을 출력하지 않는다.
+
+영어 표기 규칙:
+- 영어 단어는 한국어 음역으로만 표기한다.
+- 예: dashboard -> 대시보드, dataset -> 데이터셋, pipeline -> 파이프라인, system -> 시스템.
 
 숫자 표기 규칙:
 - 금액은 반드시 한글 화폐식으로 쓴다.
