@@ -248,10 +248,10 @@ class Indexer:
             {
                 "id": c.id,
                 "len": len(c.text),
-                "text": c.text[:400],
+                "text": c.text,
                 "metadata": c.metadata,
             }
-            for c in chunks[:10]
+            for c in chunks
         ]
         # 청크 미리보기는 디버깅/검증 용도로만 사용한다.
         with open(self.config.chunk_preview_path, "w", encoding="utf-8") as f:
@@ -273,7 +273,11 @@ class Indexer:
         self._write_status(status)
 
         # 데이터 디렉토리와 메타데이터 CSV로부터 문서를 로드
-        documents: List[Document] = load_documents(data_dir, metadata_csv)
+        documents: List[Document] = load_documents(
+            data_dir,
+            metadata_csv,
+            config=self.config,
+        )
         status.total_documents = len(documents)
 
         # 문서 로딩 후 청킹 단계로 넘어간다.
@@ -286,6 +290,7 @@ class Indexer:
             chunk_size=self.config.chunk_size,
             overlap=self.config.chunk_overlap,
         )
+        print(f"[CHUNK] total_chunks={len(chunks)}")
         status.total_chunks = len(chunks)
         # 청크 길이 통계를 만들어 상태 파일에 남긴다.
         lengths = [len(c.text) for c in chunks] if chunks else [0]
@@ -299,14 +304,18 @@ class Indexer:
         self._write_status(status)
 
         # 청크들을 벡터화해 FAISS 인덱스를 생성
+        print("[FAISS] build start")
         self.store.build(chunks)
+        print("[FAISS] build done")
 
         # 로컬 저장 단계로 전환
         status.step = "save_faiss"
         self._write_status(status)
 
         # 인덱스를 디스크에 저장
+        print(f"[FAISS] save start -> {self.config.index_dir}")
         self.store.save(self.config.index_dir)
+        print("[FAISS] save done")
 
         # 모든 단계가 완료되면 완료 상태로 기록
         status.step = "done"

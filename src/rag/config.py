@@ -74,3 +74,20 @@ class RAGConfig:
     chunk_preview_path: str = "data/chunk_preview.json"
     # vLLM용 토크나이저 캐시 경로 지정
     tokenizer_cache_dir: str = "data/tokenizer_cache"
+
+    # Qwen3-VL 로컬 모델 경로
+    qwen3_vl_model_path: str = "models/qwen3-vl-8b"
+    # Qwen3-VL 사용 여부
+    qwen3_vl_enabled: bool = True
+    # Qwen3-VL 최대 생성 토큰
+    qwen3_vl_max_tokens: int = 512
+    # Qwen3-VL vLLM GPU 메모리 사용량
+    qwen3_vl_gpu_memory_utilization: float = 0.9
+    # Qwen3-VL vLLM 최대 컨텍스트 길이
+    qwen3_vl_max_model_len: int = 8192
+    # Qwen3-VL 이미지 필터링(무의미 이미지 스킵)
+    qwen3_vl_dedupe_images: bool = True
+    qwen3_vl_min_image_pixels: int = 128 * 128
+    qwen3_vl_min_nonwhite_ratio: float = 0.02
+    qwen3_vl_min_variance: float = 15.0
+    qwen3_vl_min_edge_energy: float = 0.01

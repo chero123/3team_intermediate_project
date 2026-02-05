@@ -1,25 +1,24 @@
 """
 Torch-free ONNX 추론 (KR only)
 
+흐름 요약:
+- 텍스트 정규화/토큰화
+- BERT 피처 추출
+- ONNX 세션으로 음성 합성
+- 필요 시 wav 저장
+
+실행 방법:
 uv run infer_onnx.py \
-  --onnx /home/ahnhs2k/pytorch-demo/kor_voice_making/MeloTTS/onnx_out/melo_yae.onnx \
-  --bert /home/ahnhs2k/pytorch-demo/kor_voice_making/MeloTTS/scripts/bert_kor.onnx \
-  --config /home/ahnhs2k/pytorch-demo/kor_voice_making/MeloTTS/logs/yae_ko/config.json \
+  --onnx models/melo_yae/melo_yae.onnx \
+  --bert models/melo_yae/bert_kor.onnx \
+  --config models/melo_yae/config.json \
   --text "오늘은 날씨가 정말 좋네요." \
   --speaker 0 \
   --lang KR \
   --device cpu \
   --out out.wav
 """
-# =====================================================================
-# TTS ONNX Inference Runtime
-#
-# 흐름 요약:
-# - 텍스트 정규화/토큰화
-# - BERT 피처 추출
-# - ONNX 세션으로 음성 합성
-# - 필요 시 wav 저장
-# =====================================================================
+
 import argparse
 import json
 import re
@@ -80,8 +79,7 @@ def _get_tokenizer(model_id: str) -> AutoTokenizer:
 
     return _tokenizers[model_id]
 
-def _select_ort_providers(device: str) -> List[str]:
-    
+def _select_ort_providers(device: str) -> List[str]:  
     # 런타임에 사용 가능한 ORT provider를 조회해 GPU 사용 가능 여부를 판단한다.
     available = ort.get_available_providers()
     if device == "cuda" and "CUDAExecutionProvider" in available:
@@ -90,8 +88,7 @@ def _select_ort_providers(device: str) -> List[str]:
 
     return ["CPUExecutionProvider"]
 
-def _resolve_bert_max_length(session: ort.InferenceSession, tokenizer: AutoTokenizer) -> Tuple[int, bool]:
-    
+def _resolve_bert_max_length(session: ort.InferenceSession, tokenizer: AutoTokenizer) -> Tuple[int, bool]:   
     max_len: Optional[int] = None
     # ONNX 입력 shape에서 고정 길이를 읽고, 없으면 토크나이저 설정을 따른다.
     for input_meta in session.get_inputs():
@@ -130,12 +127,8 @@ def _encode_bert(
     )
 
 def normalize_with_dictionary(text: str, dic: Dict[str, str]) -> str:
-    if any(key in text for key in dic.keys()):
-        import re
-
-        
-        pattern = re.compile("|".join(re.escape(key) for key in dic.keys()))
-    
+    if any(key in text for key in dic.keys()):       
+        pattern = re.compile("|".join(re.escape(key) for key in dic.keys()))    
         return pattern.sub(lambda x: dic[x.group()], text)
 
     return text

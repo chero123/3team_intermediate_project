@@ -49,6 +49,7 @@ class VLLMLLM(LLM):
             model=model_path,
             tokenizer=model_path,
             tokenizer_mode="auto",
+            max_model_len=4096,
         )
         if quantization:
             # bitsandbytes 등 양자화 설정이 있을 때만 옵션을 추가한다.
