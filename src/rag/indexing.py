@@ -10,11 +10,13 @@ FAISS 인덱싱 및 상태 관리 모듈
 """
 
 import json
+import pickle
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from langchain_community.vectorstores import FAISS
+from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document as LCDocument
 from langchain_core.embeddings import Embeddings
 
@@ -257,6 +259,24 @@ class Indexer:
         with open(self.config.chunk_preview_path, "w", encoding="utf-8") as f:
             json.dump(preview, f, ensure_ascii=False, indent=2)
 
+    def _build_bm25(self, chunks: List[Chunk]) -> None:
+        """
+        _build_bm25는 BM25 인덱스를 생성해 저장한다.
+
+        Args:
+            chunks: 청크 리스트
+        """
+        if not chunks:
+            return
+        docs = [
+            LCDocument(page_content=c.text, metadata={**c.metadata, "chunk_id": c.id})
+            for c in chunks
+        ]
+        bm25 = BM25Retriever.from_documents(docs)
+        bm25.k = self.config.bm25_top_k
+        with open(self.config.bm25_index_path, "wb") as f:
+            pickle.dump(bm25, f)
+
     def build_index(self, data_dir: str, metadata_csv: str) -> None:
         """
         build_index는 문서 로드부터 인덱스 저장까지 수행
@@ -298,6 +318,11 @@ class Indexer:
         status.max_chunk_len = int(max(lengths))
         status.avg_chunk_len = float(sum(lengths) / max(1, len(lengths)))
         self._write_preview(chunks)
+
+        # BM25 인덱스를 저장 (RRR 결합용)
+        print(f"[BM25] build/save start -> {self.config.bm25_index_path}")
+        self._build_bm25(chunks)
+        print("[BM25] build/save done")
 
         # FAISS 인덱스 빌드 단계로 전환
         status.step = "build_faiss"

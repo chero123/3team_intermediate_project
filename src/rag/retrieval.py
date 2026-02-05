@@ -10,12 +10,17 @@ RAG 검색/분석 흐름 모듈
 - 검색/리랭킹 구현
 """
 
+import json
+import os
+import pickle
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 # CrossEncoder는 문장쌍 점수를 다시 계산해 검색 결과를 재정렬한다.
 from sentence_transformers import CrossEncoder
+from langchain_community.retrievers import BM25Retriever
+from langchain_core.documents import Document as LCDocument
 
 from .config import RAGConfig
 from .indexing import FaissVectorStore
@@ -219,7 +224,7 @@ class RetrievalOrchestrator:
 
 
 # Retrieval utilities
-def reciprocal_rank_fusion(ranked_lists: List[List[Chunk]], k: int = 60) -> List[Chunk]:
+def reciprocal_rank_fusion(ranked_lists: List[tuple[List[Chunk], float]], k: int = 60) -> List[Chunk]:
     """
     reciprocal_rank_fusion은 RRF 결합 수행
 
@@ -234,14 +239,80 @@ def reciprocal_rank_fusion(ranked_lists: List[List[Chunk]], k: int = 60) -> List
     scores: Dict[str, float] = {}
     chunk_map: Dict[str, Chunk] = {}
 
-    for ranked in ranked_lists:
+    for ranked, weight in ranked_lists:
         for rank, chunk in enumerate(ranked, start=1):
             chunk_map[chunk.id] = chunk
-            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1.0 / (k + rank)
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + weight / (k + rank)
 
     # 점수가 큰 순서대로 정렬해 최종 랭킹을 만든다.
     fused = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     return [chunk_map[chunk_id] for chunk_id, _ in fused]
+
+
+def _lc_doc_to_chunk(doc: LCDocument) -> Chunk:
+    """
+    LangChain Document를 Chunk로 변환한다.
+
+    Args:
+        doc: LangChain 문서
+
+    Returns:
+        Chunk: 변환된 청크
+    """
+    chunk_id = doc.metadata.get("chunk_id", "")
+    metadata = dict(doc.metadata)
+    metadata.pop("chunk_id", None)
+    return Chunk(id=chunk_id, text=doc.page_content, metadata=metadata)
+
+
+def _build_bm25_from_preview(preview_path: str, top_k: int) -> Optional[BM25Retriever]:
+    """
+    chunk_preview.json 기반으로 BM25 리트리버를 생성한다.
+
+    Args:
+        preview_path: 청크 프리뷰 경로
+        top_k: BM25 반환 개수
+
+    Returns:
+        Optional[BM25Retriever]: 생성된 리트리버
+    """
+    if not os.path.exists(preview_path):
+        return None
+    try:
+        with open(preview_path, "r", encoding="utf-8") as f:
+            preview = json.load(f)
+    except Exception:
+        return None
+    if not isinstance(preview, list):
+        return None
+    docs: List[LCDocument] = []
+    for item in preview:
+        text = item.get("text") or ""
+        if not text:
+            continue
+        metadata = dict(item.get("metadata") or {})
+        metadata["chunk_id"] = item.get("id", "")
+        docs.append(LCDocument(page_content=text, metadata=metadata))
+    if not docs:
+        return None
+    retriever = BM25Retriever.from_documents(docs)
+    retriever.k = top_k
+    return retriever
+
+
+def _load_bm25_from_file(path: str, top_k: int) -> Optional[BM25Retriever]:
+    """
+    저장된 BM25 인덱스를 로드한다.
+    """
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            bm25 = pickle.load(f)
+        bm25.k = top_k
+        return bm25
+    except Exception:
+        return None
 
 
 # Reranker implementations
@@ -318,6 +389,7 @@ class Retriever:
         self.store = store
         self.config = config
         self.reranker = reranker
+        self._bm25: Optional[BM25Retriever] = None
 
     def retrieve(self, plan: RetrievalPlan) -> RetrievalResult:
         """
@@ -369,10 +441,20 @@ class Retriever:
 
         mmr_chunks = self._retrieve_with_mmr(plan)
 
-        fused = reciprocal_rank_fusion(
-            [sim_chunks, mmr_chunks],
-            k=self.config.rrf_k,
-        )
+        bm25_chunks: List[Chunk] = []
+        bm25 = self._get_bm25(top_k=self.config.bm25_top_k)
+        if bm25 is not None:
+            docs = bm25.get_relevant_documents(plan.query)
+            bm25_chunks = [_lc_doc_to_chunk(doc) for doc in docs]
+
+        ranked_lists: List[tuple[List[Chunk], float]] = [
+            (sim_chunks, 1.0),
+            (mmr_chunks, 1.0),
+        ]
+        if bm25_chunks:
+            ranked_lists.append((bm25_chunks, self.config.bm25_weight))
+
+        fused = reciprocal_rank_fusion(ranked_lists, k=self.config.rrf_k)
         return fused[: plan.top_k]
 
     def _retrieve_with_mmr(self, plan: RetrievalPlan) -> List[Chunk]:
@@ -393,3 +475,21 @@ class Retriever:
             lambda_mult=self.config.mmr_lambda,
             metadata_filter=plan.metadata_filter,
         )
+
+    def _get_bm25(self, top_k: int) -> Optional[BM25Retriever]:
+        """
+        BM25 리트리버를 필요 시 로딩한다.
+
+        Args:
+            top_k: BM25 반환 개수
+
+        Returns:
+            Optional[BM25Retriever]: BM25 리트리버
+        """
+        if self._bm25 is None:
+            self._bm25 = _load_bm25_from_file(self.config.bm25_index_path, top_k)
+        if self._bm25 is None:
+            self._bm25 = _build_bm25_from_preview(self.config.chunk_preview_path, top_k)
+        if self._bm25 is not None:
+            self._bm25.k = top_k
+        return self._bm25

@@ -28,11 +28,17 @@
 1. `scripts/build_index.py`가 실행된다.
 2. `Indexer.build_index()`가 상태 파일을 생성한다.
 3. `load_documents()`가 문서와 메타데이터를 로드한다.
-4. `chunk_documents()`가 텍스트를 청킹한다.
-5. `FaissVectorStore.build()`가 인덱스를 만든다.
-6. `FaissVectorStore.save()`가 인덱스를 `data/index`에 저장한다.
-7. 상태 파일 `data/index_status.json`이 완료 상태로 업데이트된다.
-8. 샘플 청크가 `data/chunk_preview.json`에 저장된다.
+4. `load_documents()` 내부에서 PDF/HWP/DOCX를 파싱한다.
+   - PDF는 `pdfplumber`(기본) 또는 `fitz`를 사용한다.
+   - PDF는 이미지 추출 시 Qwen3-VL(vLLM)로 수치/표 정보를 추출한다.
+   - 이미지가 비어 있거나 로고/단색 등 저정보 이미지는 필터링한다.
+   - 중복 이미지는 해시로 스킵한다.
+   - VLM 결과는 메타데이터(`vlm_image_text`, `vlm_image_text_present`)에 기록된다.
+5. `chunk_documents()`가 텍스트를 청킹한다.
+6. `FaissVectorStore.build()`가 인덱스를 만든다.
+7. `FaissVectorStore.save()`가 인덱스를 `data/index`에 저장한다.
+8. 상태 파일 `data/index_status.json`이 완료 상태로 업데이트된다.
+9. 샘플 청크가 `data/chunk_preview.json`에 저장된다.
 
 ## 실행 흐름
 1. `scripts/run_query.py`가 실행된다.
@@ -125,6 +131,35 @@ END
 - `data/index_status.json`에 문서 수, 청크 수, 길이 통계가 기록
 - `data/chunk_preview.json`에 청크 샘플이 저장
 - `scripts/inspect_chunks.py`로 즉시 출력 확인이 가능
+
+## VLM(Qwen3-VL) 파이프라인 (PDF 이미지)
+- 모델: `models/qwen3-vl-8b` (로컬 경로)
+- 실행: `data.py`에서 vLLM 기반으로 로드
+- 입력: PDF 내 이미지 추출 -> PIL 변환 -> Qwen3-VL 프롬프트
+- 출력: 수치/표/지표 중심 텍스트
+- 필터링:
+  - 최소 해상도
+  - 저분산/단색
+  - 낮은 엣지 에너지
+  - 중복 이미지 해시 제거
+- 설정 위치: `config.py`
+  - `qwen3_vl_enabled`
+  - `qwen3_vl_model_path`
+  - `qwen3_vl_max_tokens`
+  - `qwen3_vl_gpu_memory_utilization`
+  - `qwen3_vl_max_model_len`
+  - `qwen3_vl_min_image_pixels`, `qwen3_vl_min_variance`, `qwen3_vl_min_edge_energy`, `qwen3_vl_min_nonwhite_ratio`, `qwen3_vl_dedupe_images`
+
+## VLM 이미지 필터링 도입 배경
+- 초기에는 로고/빈 페이지/단색 이미지까지 전부 VLM에 전달되어
+  추론 시간이 급격히 증가하고 "수치 없음" 같은 무의미 결과가 대량 생성됨.
+- 이를 해결하기 위해 이미지 필터링을 추가해 의미 있는 이미지(표/그래프/지표 가능성)만 선별한다.
+- 적용 기법:
+  - 최소 픽셀 수로 저해상도/아이콘류 제거
+  - 그레이스케일 분산(variance)로 단색/로고 제거
+  - 비백색 비율로 빈 페이지 제거
+  - 엣지 에너지로 텍스트/도표 없는 이미지 제거
+  - 해시 기반 중복 이미지 제거
 
 ## 추후 수정
 - 청킹 기준 변경: `data.py`의 `simple_chunk()` 수정

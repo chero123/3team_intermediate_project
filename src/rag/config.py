@@ -15,14 +15,14 @@ class RAGConfig:
     """
     RAGConfig 데이터 클래스
     """
-    # 청크 길이 정의
+    # 청크 길이 정의 (한국어 문서 기준으로 문단 단위가 잘 끊기는 값)
     chunk_size: int = 800 
-    # 청크 간 중복 길이 정의
+    # 청크 간 중복 길이 정의 (경계 정보 손실 방지용)
     chunk_overlap: int = 120
 
-    # 최대 검색 결과 수 제한
+    # 최대 검색 결과 수 제한 (지나친 컨텍스트 팽창 방지)
     max_top_k: int = 12
-    # 최소 검색 결과 수 보장
+    # 최소 검색 결과 수 보장 (컨텍스트 부족 방지)
     min_top_k: int = 3
 
     # 단순 유사도 전략 키워드 지정
@@ -32,9 +32,9 @@ class RAGConfig:
     # RRF 전략 키워드 지정
     rrf_strategy: str = "rrf"
 
-    # 생성 응답 최대 토큰 수 설정
+    # 생성 응답 최대 토큰 수 설정 (과도한 장문 방지)
     response_max_tokens: int = 480
-    # 생성 샘플링 온도 설정
+    # 생성 샘플링 온도 설정 (요약 정확성 우선)
     response_temperature: float = 0.1
 
     # LLM 로컬 경로 지정
@@ -56,18 +56,24 @@ class RAGConfig:
     # OpenAI Gpt-5 계열용 맥스 토큰 설정
     openai_gpt5_max_tokens: int = 800
 
-    # 임베딩 배치 크기 설정
+    # 임베딩 배치 크기 설정 (GPU 메모리와 속도 균형)
     embedding_batch_size: int = 32
 
-    # RRF 결합 보정 상수 설정
+    # RRF 결합 보정 상수 설정 (상위 랭크 편향 완화용)
     rrf_k: int = 60
-    # MMR 가중치 설정
+    # BM25 검색 결과 수 (키워드 매칭 신호 확보)
+    bm25_top_k: int = 30
+    # RRF에서 BM25 가중치 (dense 결과 대비 영향도)
+    bm25_weight: float = 1.0
+    # MMR 가중치 설정 (관련성 vs 다양성 균형)
     mmr_lambda: float = 0.7
-    # MMR 후보 풀 크기 설정
+    # MMR 후보 풀 크기 설정 (다양성 확보용 후보 수)
     mmr_candidate_pool: int = 30
 
     # 인덱스 저장 경로 지정
     index_dir: str = "data/index"
+    # BM25 인덱스 저장 경로
+    bm25_index_path: str = "data/index/bm25.pkl"
     # 인덱싱 상태 파일 경로 지정
     index_status_path: str = "data/index_status.json"
     # 청크 미리보기 파일 경로 지정
@@ -79,15 +85,19 @@ class RAGConfig:
     qwen3_vl_model_path: str = "models/qwen3-vl-8b"
     # Qwen3-VL 사용 여부
     qwen3_vl_enabled: bool = True
-    # Qwen3-VL 최대 생성 토큰
+    # Qwen3-VL 최대 생성 토큰 (표/수치 요약에 필요한 길이)
     qwen3_vl_max_tokens: int = 512
-    # Qwen3-VL vLLM GPU 메모리 사용량
+    # Qwen3-VL vLLM GPU 메모리 사용량 (KV 캐시 부족 방지)
     qwen3_vl_gpu_memory_utilization: float = 0.9
-    # Qwen3-VL vLLM 최대 컨텍스트 길이
+    # Qwen3-VL vLLM 최대 컨텍스트 길이 (FP8+GPU 메모리 제약 고려)
     qwen3_vl_max_model_len: int = 8192
     # Qwen3-VL 이미지 필터링(무의미 이미지 스킵)
     qwen3_vl_dedupe_images: bool = True
+    # 너무 작은 이미지/아이콘 제거 기준
     qwen3_vl_min_image_pixels: int = 128 * 128
+    # 빈 페이지(거의 백지) 제거 기준
     qwen3_vl_min_nonwhite_ratio: float = 0.02
+    # 단색/로고 제거 기준
     qwen3_vl_min_variance: float = 15.0
+    # 도표/텍스트가 없는 이미지 제거 기준
     qwen3_vl_min_edge_energy: float = 0.01
