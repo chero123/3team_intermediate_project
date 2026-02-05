@@ -7,6 +7,7 @@ import os
 import json
 import time
 import numpy as np
+import dotenv
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -34,6 +35,7 @@ class EvaluationResult:
     keyword_precision: float = 0.0  # must_include 키워드 포함률
     keyword_recall: float = 0.0  # relevant_keywords 매칭률
     answer_quality_score: float = 0.0  # 종합 점수
+    total_time_seconds: float = 0.0  # 추가: 테스트 총 소요시간
 
 
 # ============================================
@@ -452,11 +454,24 @@ class RAGEvaluator:
 
         # 각 조합 평가
         combo_idx = 0
+        start_from = 0  # 0번 부터 시작
         total_combos = len(self.chunking_methods) * (
             len(self.embedding_models) - len(skip_models)
         )
 
         for chunk_folder, chunk_name in self.chunking_methods.items():
+            # 이 청킹 방식의 모든 조합이 start_from 이전인지 먼저 체크
+            chunk_start_idx = combo_idx + 1
+            chunk_end_idx = combo_idx + len(self.embedding_models) - len(skip_models)
+
+            if chunk_end_idx < start_from:
+                # 이 청킹 방식 전체 스킵
+                combo_idx = chunk_end_idx
+                print(
+                    f"\n[청킹] {chunk_name} - 전체 스킵 (조합 {chunk_start_idx}~{chunk_end_idx})"
+                )
+                continue
+
             print(f"\n[청킹] {chunk_name}")
 
             # 청크 로드
@@ -473,21 +488,37 @@ class RAGEvaluator:
                     continue
 
                 combo_idx += 1
+                if combo_idx < start_from:
+                    print(
+                        f"  [{combo_idx}/{total_combos}] {chunk_name} + {emb_model} - 스킵"
+                    )
+                    continue
+
                 print(f"\n  [{combo_idx}/{total_combos}] {chunk_name} + {emb_model}")
 
                 try:
+                    test_start_time = time.time()  # 추가: 시작 시간
+
                     result = self.evaluate_single_combination(
                         chunks=chunks,
                         eval_data=eval_data,
                         embedding_model=emb_model,
                         chunking_method=chunk_name,
                     )
+
+                    result.total_time_seconds = (
+                        time.time() - test_start_time
+                    )  # 추가: 소요시간 기록
+
                     results.append(result)
 
                     print(f"    Hit@1: {result.hit_rate_at_1:.2%}")
                     print(f"    Hit@5: {result.hit_rate_at_5:.2%}")
                     print(f"    MRR: {result.mrr:.4f}")
                     print(f"    Latency: {result.avg_latency_ms:.1f}ms")
+                    print(
+                        f"    Total Time: {result.total_time_seconds:.1f}s"
+                    )  # 총 소요시간 출력
 
                 except Exception as e:
                     print(f"    [오류] {e}")
@@ -522,6 +553,7 @@ class RAGEvaluator:
                     "avg_latency_ms": r.avg_latency_ms,
                     "total_chunks": r.total_chunks,
                     "embedding_dim": r.embedding_dim,
+                    "total_time_seconds": r.total_time_seconds,
                 }
                 for r in results
             ],
@@ -571,10 +603,16 @@ class RAGEvaluator:
 
 if __name__ == "__main__":
     # 평가 데이터셋 파일 경로
-    EVAL_DATASET = "data/evaluation_dataset.json"
+    EVAL_DATASET = "data/evaluation_dataset2.json"
 
     # 스킵할 모델 (OpenAI API 키 없으면 스킵)
-    SKIP_MODELS = []  # ["openai"] 로 설정하면 OpenAI 스킵
+    SKIP_MODELS = [
+        "BGE-m3-ko",
+        "openai",
+    ]  # ["openai"] 로 설정하면 OpenAI 스킵
+
+    # API 연동
+    dotenv.load_dotenv()
 
     # 평가기 생성 및 실행
     evaluator = RAGEvaluator(base_data_dir="data")
