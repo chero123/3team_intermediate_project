@@ -11,4 +11,4 @@ def get_retriever(db_path="/home/spai0630/workspace/3team_intermediate_project/d
         
     vector_db = Chroma(persist_directory=db_path, embedding_function=embeddings)
     
-    return vector_db.as_retriever(search_kwargs={"k": 3})
+    return vector_db.as_retriever(search_kwargs={"k": 10})
