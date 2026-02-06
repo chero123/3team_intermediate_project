@@ -3,6 +3,7 @@
 - 아키텍쳐에 관한 상세 내용은 [여기](docs/ARCHITECTURE.md)
 - TTS 온닉스 재생에 관한 상세 내용은 [여기](docs/ONNX_TTS.md)
 - SQLite에 관한 상세 내용은 [여기](docs/sqlite.md)
+- Qwen3-VL-8B에 관한 상세 내용은 [여기](docs/QWEN3_VL.md)
 
 ## 설치 방법
 
@@ -31,6 +32,7 @@ uv sync
 - CLI에서 run_query 실행 시 음성에 잡음이 끼는 현상이 있는데, 실제 생성된 음성 파일과 WebUI 등으로 확인 시에는 잡음이 없다.
 - Gradio, Streamlit과 같은 데모 프레임워크로는 실시간 합성을 실현할 수 없다.
 - 실시간 음성 합성을 재현하려면 FastAPI + 커스텀 프론트나 다른 방식을 사용해야 한다.
+- Qwen3-VL 이미지 파싱(8b 기준)은 무겁지만 성능이 괜찮다. 
 
 ## 2026-02-04기준 CONFIG 스냅샷
 - 아래는 `src/rag/config.py` 기준의 기본값이다.
@@ -107,21 +109,8 @@ mmr_candidate_pool=10
 - **문제: vLLM 엔진 이중 실행으로 VRAM 부족**
   - SummaryMemory가 vLLM 래퍼를 새로 띄우면서 **vLLM 엔진이 2개 실행**
   - RTX 5080 16GB 환경에서 **KV 캐시 메모리 부족으로 엔진 초기화 실패**
-- **OpenAI GPT-5-mini 응답 비어 있음 대응**
-  - reasoning 토큰만 소비하고 텍스트가 비는 케이스 발생
-  - 텍스트가 비면 안전 기본 응답으로 복구하는 방어 로직 추가
-- **컨텍스트 길이 초과 대응**
-  - RRF + MMR + BM25 + RERANK 동시 사용 시 프롬프트 길이 폭발
-  - max_top_k / bm25_top_k / mmr_candidate_pool 감소로 완화 시도
-- **BM25 도입**
-  - BM25 인덱스 별도 저장 (data/index/bm25.pkl)
-  - RRF 결합에서 BM25 가중치 적용
-- **Qwen3-VL 이미지 파싱**
-  - PDF 이미지 추출 + VLM 요약 추가
-  - 로고/빈 이미지 필터링(픽셀/분산/엣지 기준) 적용
-- **UI/CLI 스트리밍 시도**
-  - Gradio 문장 스트리밍 및 TTS 연동 시도
-  - 문장 분리/재생 지연/동기화 이슈로 일괄 재생으로 복귀
+
+> **SQLITE만 사용 결정** 
 
 ## 추후 작업
 

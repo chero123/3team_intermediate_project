@@ -34,6 +34,8 @@
    - 이미지가 비어 있거나 로고/단색 등 저정보 이미지는 필터링한다.
    - 중복 이미지는 해시로 스킵한다.
    - VLM 결과는 메타데이터(`vlm_image_text`, `vlm_image_text_present`)에 기록된다.
+   - Qwen3-VL은 **chat template 적용 + 멀티모달 입력(dict)** 형식으로 vLLM에 전달된다.
+   - 초기 로딩은 `AutoProcessor`와 vLLM `LLM`을 캐시해 재사용한다.
 5. `chunk_documents()`가 텍스트를 청킹한다.
 6. `FaissVectorStore.build()`가 인덱스를 만든다.
 7. `FaissVectorStore.save()`가 인덱스를 `data/index`에 저장한다.
@@ -65,6 +67,9 @@
   이전 턴은 참고용으로만 제공된다.
 - followup/multi 질문은 **검색 전용 쿼리 리라이트**를 수행해 검색 품질을 개선한다.
 - 구현/사용법/스키마 상세는 `docs/sqlite.md`를 참고한다.
+
+## Qwen3-VL 상세 문서
+- Qwen3-VL 8B 기능/코드/사용법은 `docs/QWEN3_VL.md` 참고
 
 ## 사용법 및 주의사항 (로컬 vLLM vs OpenAI)
 ### 로컬 vLLM 버전
@@ -163,6 +168,9 @@ route_by_plan
 - 기본 흐름
   1) LLM 분류가 가능하면 `classify_query_type()` 결과를 우선 사용한다.  
   2) LLM 분류가 비어 있으면 휴리스틱 키워드로 폴백한다.
+  3) **문맥 변경(세션 리셋) 판단은 분류와 별개로 수행**한다.
+     - 분류는 “전략 선택”이고, 문맥 변경은 “세션 범위 리셋”이다.
+     - single/multi 라벨이 곧바로 새 문맥을 의미하지 않는다.
 
 - followup
   - 키워드 포함: `그럼`, `그렇다면`, `또`, `추가로`, `더`, `이어서`, `방금`, `앞서`
@@ -204,10 +212,13 @@ route_by_plan
 ## 전략 선택 이유
 - single 질문: 단일 문서에서 정확한 답을 찾는 문제로 가정  
   - similarity만 사용해 노이즈를 줄이고 속도를 확보  
-- multi/compare 질문: 여러 문서를 섞어야 하므로 다양성과 키워드 신호가 중요  
+- multi 질문: 여러 문서를 섞어야 하므로 다양성과 키워드 신호가 중요  
   - rrf로 similarity + mmr + bm25를 결합해 폭넓게 커버  
 - followup 질문: 이전 맥락을 좁혀서 찾는 게 중요  
   - similarity로 집중된 검색을 수행
+- **문맥 변경 판단과 전략 선택은 분리된다**
+  - 전략 선택: LLM 분류/키워드 휴리스틱으로 single/multi/followup을 결정
+  - 문맥 변경: 세션 메모리 규칙(리셋 키워드 + 질문 유사도)으로 기존 문서 범위를 유지/해제
 
 ### MMR 예시
 - 질문: “사업 목적과 범위 요약”

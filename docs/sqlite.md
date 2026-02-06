@@ -144,35 +144,62 @@ uv run scripts/run_query.py --tts --device cuda
 uv run scripts/run_query_openai.py --tts --device cuda
 ```
 
-### REST API
-REST에서는 `session_id`를 직접 넘겨야 한다.
-
-요청 예시:
-
-```json
-POST /api/ask
-{
-  "question": "첫 질문",
-  "provider": "local",
-  "session_id": "user-session-001"
-}
-```
-
-후속 질문도 동일 `session_id` 사용:
-
-```json
-POST /api/ask
-{
-  "question": "추가 질문",
-  "provider": "local",
-  "session_id": "user-session-001"
-}
-```
-
 ### Gradio UI
 Gradio는 `gr.State`로 세션 ID를 유지한다.
 - 페이지 새로고침 시 세션이 바뀜
 - 동일 브라우저 세션에서는 멀티턴 유지
+
+## SQLite CLI 조회
+
+SQLite 파일을 직접 열어 세션/피드백 데이터를 확인할 수 있다.
+
+### 실행
+```bash
+sqlite3 data/session_memory.sqlite
+```
+
+### 테이블 확인
+```sql
+.tables
+```
+
+### 스키마 확인
+```sql
+.schema session_state
+.schema session_docs
+.schema feedback
+```
+
+### 최근 세션 상태 조회
+```sql
+SELECT session_id, updated_at, last_question, last_answer
+FROM session_state
+ORDER BY updated_at DESC
+LIMIT 5;
+```
+
+### 세션 문서 목록 조회
+```sql
+SELECT session_id, doc_id, rank, created_at
+FROM session_docs
+ORDER BY created_at DESC, rank ASC
+LIMIT 20;
+```
+
+### 피드백 조회
+```sql
+SELECT session_id, provider, rating, created_at
+FROM feedback
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+### 종료
+```sql
+.exit
+```
+또는 `Ctrl+D` (EOF)로 종료한다.  
+`exit`는 SQL 키워드가 아니라서 종료되지 않는다.
 
 
 ## 주의사항

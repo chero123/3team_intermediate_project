@@ -26,11 +26,84 @@
   - `qwen3_vl_min_image_pixels`: 너무 작은 이미지 제거
   - `qwen3_vl_min_nonwhite_ratio`: 거의 백지인 이미지 제거
   - `qwen3_vl_min_variance`: 단색/로고 이미지 제거
-  - `qwen3_vl_min_edge_energy`: 도표/텍스트 없는 이미지 제거
+- `qwen3_vl_min_edge_energy`: 도표/텍스트 없는 이미지 제거
+
+## 코드 위치/구성
+Qwen3-VL 로직은 `src/rag/data.py`에 집중되어 있다.
+
+주요 함수
+- `_get_qwen3_vl(config)`  
+  - 로컬 경로(`config.qwen3_vl_model_path`)에서만 로딩  
+  - `AutoProcessor` + vLLM `LLM` 인스턴스를 전역 캐시에 보관
+- `_prepare_vllm_inputs(messages, processor)`  
+  - Qwen3-VL의 **chat template**로 텍스트 프롬프트 구성  
+  - `process_vision_info()`로 이미지 입력을 **multi_modal_data**로 변환
+- `_vlm_extract_from_image(image, config)`  
+  - 이미지 1장을 Qwen3-VL에 전달해 수치/표/텍스트를 요약  
+  - `SamplingParams(temperature=0.0)`로 결정적 출력 유지
+- `_extract_pdf_images_with_vlm(path, config)`  
+  - `fitz`로 PDF 내 이미지를 추출/렌더링  
+  - 중복 이미지 제거 + 의미 없는 이미지 필터링  
+  - 페이지/이미지별로 VLM 추론
+- `_is_meaningful_image(image, config)`  
+  - 해상도/분산/비백색 비율/엣지 에너지로 무의미 이미지 제거
+
+관련 코드 흐름
+- `extract_text_from_pdf_with_vlm()`  
+  - PDF 본문 텍스트 + 이미지 텍스트를 동시에 추출
+- `load_documents()`  
+  - PDF 처리 시 `extract_text_from_pdf_with_vlm()` 호출  
+  - `vlm_image_text`, `vlm_image_text_present` 메타데이터 기록
+
+## vLLM 호출 형식(코드 기준)
+`_prepare_vllm_inputs()`가 만든 입력 구조는 아래와 같다.
+```
+{
+  "prompt": "<chat template text>",
+  "multi_modal_data": {"image": <image tensor>},
+  "mm_processor_kwargs": <video/image metadata>
+}
+```
+
+## Qwen3-VL 챗 템플릿 적용
+`_prepare_vllm_inputs()`에서 `processor.apply_chat_template()`을 호출해 Qwen3-VL의
+**공식 chat template**을 사용한다.
+
+동작
+- `messages` 리스트를 받아 **텍스트 프롬프트**로 변환
+- `add_generation_prompt=True`로 **생성 시작 토큰**을 자동 추가
+
+코드 위치
+- `src/rag/data.py` -> `_prepare_vllm_inputs()`
+
+## Qwen3-VL 프롬프트(이미지 전용)
+- 이미지 입력과 함께 **표/수치 중심 요약**을 요청하는 프롬프트가 사용된다.
+- 목표는 **의미 없는 해설**이 아니라 **수치/표 요약**이다.
+- 프롬프트 문자열은 `QWEN3_VL_PROMPT` 상수로 관리된다.
 
 ## 모델 경로
 - **로컬 경로 기준**: `models/qwen3-vl-8b`
 - HuggingFace에서 다운로드를 요구하지 않도록 로컬 경로를 사용한다.
+
+## 모델 초기화(로딩) 세부
+모델 초기화는 `_get_qwen3_vl(config)`에서 수행된다.
+
+1) 로컬 모델 경로 확인  
+   - `config.qwen3_vl_model_path` 존재 여부를 검사  
+   - 없으면 즉시 예외 발생
+
+2) Processor 로딩  
+   - `AutoProcessor.from_pretrained(..., trust_remote_code=True, local_files_only=True)`  
+   - 이미지 전처리 + 텍스트 토큰화 포함
+
+3) vLLM 엔진 로딩  
+   - `vllm.LLM(model=..., gpu_memory_utilization=..., max_model_len=...)`  
+   - `limit_mm_per_prompt={\"image\": 1, \"video\": 0}`  
+   - 멀티모달 입력은 **이미지 1장만 허용**
+
+4) 전역 캐시 재사용  
+   - `_QWEN3_VL_CACHE`에 processor/llm 저장  
+   - 동일 프로세스 내 재사용
 
 ## 사용 시나리오
 - `scripts/build_index.py` 실행 시 PDF 로딩 단계에서 자동 수행
@@ -68,6 +141,12 @@ Qwen3-VL은 **로고, 배경, 아이콘 같은 무의미 이미지**에도 응�
 [VLM] pages:  13%|██             | 10/75 [20:34<3:30:36, 194.41s/page]
 [VLM] image_text_len=1234 path=data/files/서울특별시_2024년 지도정보 플랫폼.pdf
 ```
+
+## 주의사항
+- `fitz`가 없으면 이미지 렌더링 자체가 불가능하다.
+- `qwen3_vl_enabled=False`면 이미지 추출은 즉시 스킵된다.
+- vLLM 엔진은 초기 로딩이 느리며, **첫 실행**이 가장 오래 걸린다.
+- PDF가 깨진 경우 `MuPDF error` 로그가 발생할 수 있다. 해당 페이지는 스킵된다.
 
 ## 모델 로딩 방식 (vLLM)
 - vLLM 엔진으로 로컬 모델을 로딩

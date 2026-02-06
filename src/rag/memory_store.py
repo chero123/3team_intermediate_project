@@ -73,6 +73,20 @@ class SessionMemoryStore:
                 )
                 """
             )
+            # 세션별 사용자 피드백(좋아요/싫어요)을 보관하는 테이블
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT,
+                    provider TEXT,
+                    question TEXT,
+                    answer TEXT,
+                    rating INTEGER,
+                    created_at REAL
+                )
+                """
+            )
 
     def load_doc_ids(self, session_id: str, limit: Optional[int] = None) -> List[str]:
         """
@@ -198,6 +212,35 @@ class SessionMemoryStore:
         if row is None:
             return None, None
         return row[0], row[1]
+
+    def save_feedback(
+        self,
+        session_id: str,
+        provider: str,
+        question: str,
+        answer: str,
+        rating: int,
+    ) -> None:
+        """
+        사용자 피드백(좋아요/싫어요)을 저장한다.
+
+        Args:
+            session_id: 세션 식별자
+            provider: local | openai
+            question: 사용자 질문
+            answer: 모델 답변
+            rating: 1(좋아요) / -1(싫어요)
+        """
+        now = time.time()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO feedback
+                    (session_id, provider, question, answer, rating, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (session_id, provider, question, answer, int(rating), now),
+            )
 
     def has_session(self, session_id: str) -> bool:
         """

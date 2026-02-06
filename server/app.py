@@ -1,5 +1,5 @@
 """
-FastAPI + Gradio 통합 코드
+Gradio 단독 UI
 
 실행:
   uv run python -m server.app
@@ -9,36 +9,11 @@ from __future__ import annotations
 import os
 import re
 import uuid
-from typing import Literal
-
 import gradio as gr
-from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
-import uvicorn
-from pydantic import BaseModel
 
 from rag.pipeline import RAGPipeline
 from rag.openai_pipeline import OpenAIRAGPipeline
 from tts_runtime.infer_onnx import infer_tts_onnx
-
-
-class AskRequest(BaseModel):
-    """
-    API 요청 바디
-
-    Args:
-        question: 사용자 질문
-        provider: local | openai (선택)
-    """
-
-    # 사용자 질문
-    question: str
-    # local / openai 중 선택
-    provider: Literal["local", "openai"] | None = None
-    # TTS 사용 여부(확장용)
-    tts: bool | None = None
-    # 세션 식별자(멀티턴 메모리용)
-    session_id: str | None = None
 
 
 def _build_pipeline(provider: str):
@@ -160,34 +135,67 @@ def ask_with_tts(question: str, provider: str | None = None, session_id: str | N
     # Gradio에는 파일 경로만 넘겨도 자동 로딩된다.
     return answer, out_path
 
-app = FastAPI(title="RAG API")
 
-
-@app.get("/")
-def root_redirect():
-    return RedirectResponse(url="/ui")
-
-@app.post("/api/ask")
-def ask_api(payload: AskRequest):
+def _extract_last_turn(history: list[dict[str, str]]) -> tuple[str | None, str | None]:
     """
-    API 엔드포인트: 질문 -> 답변
+    Chatbot 히스토리에서 마지막 질문/답변을 추출한다.
     """
-    # REST API용 단순 텍스트 응답
-    # session_id가 있으면 동일 세션의 검색 문서를 재활용한다.
-    answer = ask(payload.question, payload.provider, payload.session_id)
-    return {"answer": answer}
+    def _normalize_content(value: object) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, list):
+            parts: list[str] = []
+            for item in value:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict) and "text" in item:
+                    parts.append(str(item.get("text", "")))
+            return " ".join(p for p in parts if p).strip()
+        return ""
+
+    last_answer: str | None = None
+    last_question: str | None = None
+    for item in reversed(history):
+        # Gradio 버전에 따라 메시지 형식이 dict 또는 [user, assistant]일 수 있다.
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            user_msg = (item[0] or "").strip() if isinstance(item[0], str) else ""
+            bot_msg = (item[1] or "").strip() if isinstance(item[1], str) else ""
+            if last_answer is None and bot_msg:
+                last_answer = bot_msg
+            if last_answer is not None and user_msg:
+                last_question = user_msg
+                break
+            continue
+        if isinstance(item, dict):
+            role = item.get("role")
+            if role == "assistant" and last_answer is None:
+                last_answer = _normalize_content(item.get("content", ""))
+                continue
+            if role == "user" and last_answer is not None:
+                last_question = _normalize_content(item.get("content", ""))
+                break
+    return last_question, last_answer
 
 
-@app.post("/api/ask_tts")
-def ask_tts_api(payload: AskRequest):
+def _save_feedback(
+    history: list[dict[str, str]],
+    provider_choice: str,
+    session_id: str,
+    rating: int,
+) -> str:
     """
-    API 엔드포인트: 질문 -> 답변 -> TTS
+    좋아요/싫어요 피드백을 SQLite에 저장한다.
     """
-    # REST API용 TTS 응답
-    # session_id가 있으면 동일 세션의 검색 문서를 재활용한다.
-    answer, wav_path = ask_with_tts(payload.question, payload.provider, payload.session_id)
-    return {"answer": answer, "wav_path": wav_path}
-
+    history = history or []
+    question, answer = _extract_last_turn(history)
+    if not question or not answer:
+        return "skip"
+    pipeline = get_pipeline(provider_choice)
+    memory = getattr(pipeline, "memory", None)
+    if memory is None:
+        return "no-memory"
+    memory.save_feedback(session_id, provider_choice, question, answer, rating)
+    return "ok"
 
 def build_gradio():
     """
@@ -212,7 +220,7 @@ def build_gradio():
         answer = ask(message, provider_choice, session_id=session_id)
         history.append({"role": "assistant", "content": answer})
         # 텍스트는 먼저 출력, 오디오는 이후에 업데이트한다.
-        yield history, gr.update(value=None, autoplay=True)
+        yield history, None
         # TTS는 전체 답변을 한 번만 합성한다.
         wav_path = tts_only(answer)
         yield history, gr.update(value=wav_path, autoplay=True)
@@ -324,7 +332,7 @@ def build_gradio():
                 "<div class='rag-title'>RAG Chat</div>"
                 "<div class='rag-subtitle'>문서 기반 답변 · TTS 출력</div>"
                 "</div>"
-                "<div class='rag-chip'>FastAPI + Gradio</div>"
+                "<div class='rag-chip'>Gradio</div>"
                 "</div>"
             )
 
@@ -345,6 +353,8 @@ def build_gradio():
                     with gr.Row():
                         send_btn = gr.Button("보내기", variant="primary", elem_classes="rag-send")
                         clear_btn = gr.Button("초기화", elem_classes="rag-clear")
+                        like_btn = gr.Button("👍", elem_classes="rag-clear")
+                        dislike_btn = gr.Button("👎", elem_classes="rag-clear")
                 with gr.Column(scale=4, elem_classes="rag-panel"):
                     with gr.Column(elem_classes="rag-card"):
                         gr.Markdown("<div class='rag-side-title'>Provider</div>")
@@ -355,10 +365,11 @@ def build_gradio():
                         )
                     with gr.Column(elem_classes="rag-card rag-audio"):
                         gr.Markdown("<div class='rag-side-title'>음성</div>")
-                        audio = gr.Audio(label="", autoplay=True)
+                        audio = gr.Audio(label="", autoplay=True, interactive=False)
 
         # 버튼 클릭 -> 메시지 처리
         session_state = gr.State(value=uuid.uuid4().hex)
+        feedback_state = gr.State(value="idle")
 
         send_btn.click(
             fn=chat_with_tts,
@@ -371,18 +382,24 @@ def build_gradio():
             inputs=[message, chatbot, provider, session_state],
             outputs=[chatbot, audio],
         )
+        like_btn.click(
+            fn=lambda h, p, s: _save_feedback(h, p, s, 1),
+            inputs=[chatbot, provider, session_state],
+            outputs=[feedback_state],
+        )
+        dislike_btn.click(
+            fn=lambda h, p, s: _save_feedback(h, p, s, -1),
+            inputs=[chatbot, provider, session_state],
+            outputs=[feedback_state],
+        )
         # 초기화 -> 히스토리/오디오 리셋
         clear_btn.click(lambda: ([], None), outputs=[chatbot, audio])
     return demo, css
 
 
-demo, demo_css = build_gradio()
-app = gr.mount_gradio_app(app, demo, path="/ui")
-
-
 def main() -> None:
-    # Uvicorn으로 FastAPI 실행
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    demo, demo_css = build_gradio()
+    demo.launch(server_name="0.0.0.0", server_port=8000, css=demo_css, share=True)
 
 
 if __name__ == "__main__":
