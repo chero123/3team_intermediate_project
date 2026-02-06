@@ -9,7 +9,7 @@ __pycache__/
 data/
 data_parsed/
 files/
-final_docs/
+#final_docs/
 pdf_out/
 pdf_test/
 log/
