@@ -12,7 +12,7 @@
   - `data.py` 문서 로딩/파싱/청킹을 처리한다.
   - `embeddings.py` 임베딩 로더를 제공한다.
   - `indexing.py` FAISS 인덱싱과 상태 기록을 담당한다.
-  - `retrieval.py` 질문 분석/검색 전략/리랭크를 수행한다.
+- `retrieval.py` QueryAnalysisAgent가 질문 분석/검색 전략/리랭크를 수행한다.
   - `llm.py` vLLM 기반 생성과 프롬프트 구성을 담당한다.
   - `pipeline.py` LangGraph 온라인 파이프라인을 정의한다.
   - `openai_llm.py` OpenAI Responses/Chat 기반 생성과 프롬프트 구성을 담당한다.
@@ -44,10 +44,17 @@
 1. `scripts/run_query.py`가 실행된다.
 2. `RAGPipeline`이 저장된 인덱스를 로드한다.
 3. LangGraph가 다음 순서로 실행된다.
-   - `analyze_query`: 질문을 분석하고 RetrievalPlan을 만든다.
-   - `retrieve`: 전략에 맞게 검색하고 리랭크한다.
+- `analyze_query`: QueryAnalysisAgent로 질문을 분석하고 RetrievalPlan을 만든다.
+   - `compare`는 `multi`에 통합되어 별도 분기 없이 multi 전략으로 처리된다.
+   - `followup` 판정은 키워드/질문 길이/직전 질문 유사도를 함께 사용한다.
+   - 직전 질문이 `multi`인 경우 followup도 `multi` 전략을 강제한다.
+   - 세션에 저장된 문서 ID가 있으면 followup 범위를 그 문서로 제한한다.
+   - **검색 전용 쿼리 리라이트**를 수행해 검색 품질을 개선한다.
+     - 답변 생성에는 원 질문을 유지한다.
+   - `route_by_plan`: 질문 유형에 따라 검색 노드를 분기한다.
+   - `retrieve_*`: 전략에 맞게 검색하고 리랭크한다.
    - `generate`: 컨텍스트를 기반으로 답변을 생성한다.
-    - `rewrite`: 생성 답변을 스타일 규칙에 맞게 리라이트한다.
+   - `rewrite`: 생성 답변을 스타일 규칙에 맞게 리라이트한다.
 4. 답변이 출력되고, 선택 시 TTS가 수행된다.
 
 ## SQLite 멀티턴 메모리
@@ -56,6 +63,7 @@
 - followup으로 판정되면 저장된 문서 ID를 필터로 적용해 문서 흐름이 바뀌지 않도록 한다.
 - 프롬프트에는 **[이전 턴]**(직전 질문+답변 전체)과 **[이전 문서]**(doc_id 목록)가 함께 들어가며,
   이전 턴은 참고용으로만 제공된다.
+- followup/multi 질문은 **검색 전용 쿼리 리라이트**를 수행해 검색 품질을 개선한다.
 - 구현/사용법/스키마 상세는 `docs/sqlite.md`를 참고한다.
 
 ## 사용법 및 주의사항 (로컬 vLLM vs OpenAI)
@@ -129,16 +137,10 @@ START
 analyze_query
   │
   ▼
-retrieve
-  │
-  ▼
-generate
-  │
-  ▼
-rewrite
-  │
-  ▼
-END
+route_by_plan
+  ├─► retrieve_single ─┐
+  ├─► retrieve_multi  ─┼─► generate ─► rewrite ─► END
+  └─► retrieve_followup┘
 ```
 
 OpenAI 파이프라인(`openai_pipeline.py`):
@@ -149,28 +151,18 @@ START
 analyze_query
   │
   ▼
-retrieve
-  │
-  ▼
-generate
-  │
-  ▼
-rewrite
-  │
-  ▼
-END
+route_by_plan
+  ├─► retrieve_single ─┐
+  ├─► retrieve_multi  ─┼─► generate ─► rewrite ─► END
+  └─► retrieve_followup┘
 ```
 
-## 질문 유형 분류 기준 (single / multi / compare / followup)
+## 질문 유형 분류 기준 (single / multi / followup)
 분류는 `retrieval.py`(로컬)와 `openai_retrieval.py`(OpenAI)에서 동일한 규칙을 사용한다.
 
 - 기본 흐름
   1) LLM 분류가 가능하면 `classify_query_type()` 결과를 우선 사용한다.  
   2) LLM 분류가 비어 있으면 휴리스틱 키워드로 폴백한다.
-
-- compare
-  - 키워드 포함: `비교`, `차이`, `서로`, `vs`, `대비`
-  - 전략: `rrf_strategy`, `top_k` 상향, `needs_multi_doc=True`
 
 - followup
   - 키워드 포함: `그럼`, `그렇다면`, `또`, `추가로`, `더`, `이어서`, `방금`, `앞서`
@@ -179,6 +171,7 @@ END
 
 - multi
   - 키워드 포함: `여러`, `모든`, `각각`, `기관`
+  - 비교 키워드: `비교`, `차이`, `서로`, `vs`, `대비` (compare는 multi로 통합)
   - 전략: `rrf_strategy`, `top_k` 중간, `needs_multi_doc=True`
 
 - single
@@ -204,6 +197,9 @@ END
   - similarity + mmr + bm25를 결합  
   - bm25 인덱스가 없으면 similarity + mmr만 결합  
   - `bm25_weight`로 bm25 영향도를 조절함
+- query rewrite: multi/followup 질문은 검색 전용 쿼리로 재작성한다.
+  - 목적: 비교/후속 질문에서 핵심 키워드만 남겨 검색 품질을 높임
+  - 답변 생성에는 원 질문을 그대로 사용한다.
 
 ## 전략 선택 이유
 - single 질문: 단일 문서에서 정확한 답을 찾는 문제로 가정  

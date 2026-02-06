@@ -327,6 +327,61 @@ def rewrite_answer(llm: OpenAILLM, config: RAGConfig, answer: str) -> str:
     return _strip_rewrite_output(output)
 
 
+def rewrite_query(
+    llm: OpenAILLM,
+    config: RAGConfig,
+    question: str,
+    previous_question: str | None = None,
+    previous_answer: str | None = None,
+) -> str:
+    """
+    rewrite_query는 검색 성능을 높이기 위해 질문을 짧은 검색 쿼리로 재작성한다.
+
+    Args:
+        llm: OpenAI LLM 인스턴스
+        config: 설정 객체
+        question: 현재 질문
+        previous_question: 직전 질문
+        previous_answer: 직전 답변
+
+    Returns:
+        str: 재작성된 검색용 쿼리
+    """
+    previous_block = ""
+    if previous_question or previous_answer:
+        prev_q = previous_question or ""
+        prev_a = previous_answer or ""
+        previous_block = (
+            "\n[이전 턴]\n"
+            f"질문: {prev_q}\n"
+            f"답변: {prev_a}\n"
+            "이전 턴은 참고용이며 현재 질문을 우선한다.\n"
+        )
+
+    prompt = f"""
+너는 검색용 쿼리 재작성 도우미다.
+현재 질문을 문서 검색에 적합한 짧은 쿼리로 바꾼다.
+파일명/기관명/사업명/기간/금액 등 핵심 키워드는 반드시 유지한다.
+불필요한 서술, 감탄, 질문 부호는 제거하고 한 줄로 출력한다.
+답변이나 추측은 하지 말고, 재작성된 쿼리만 출력한다.
+{previous_block}
+[현재 질문]
+{question}
+
+출력:
+""".strip()
+
+    output = llm.generate(
+        prompt=prompt,
+        max_tokens=min(128, config.rewrite_max_tokens),
+        temperature=min(0.2, config.rewrite_temperature),
+        top_p=config.rewrite_top_p,
+        repetition_penalty=config.rewrite_repetition_penalty,
+        stop=config.rewrite_stop,
+    )
+    return _strip_rewrite_output(output).strip()
+
+
 def classify_query_type(llm: OpenAILLM, question: str) -> str:
     """
     질문을 분류 라벨로 변환한다.
@@ -336,12 +391,12 @@ def classify_query_type(llm: OpenAILLM, question: str) -> str:
         question: 사용자 질문
 
     Returns:
-        str: single | multi | compare | followup 중 하나
+        str: single | multi | followup 중 하나
     """
     # 라벨만 출력하도록 프롬프트를 단순화한다.
     prompt = f"""
 다음 질문을 유형으로 분류하라. 출력은 라벨만 한 단어로 답한다.
-라벨은 single, multi, compare, followup 중 하나다.
+라벨은 single, multi, followup 중 하나다.
 
 질문: {question}
 라벨:
@@ -356,7 +411,7 @@ def classify_query_type(llm: OpenAILLM, question: str) -> str:
     ).lower()
 
     # 라벨 문자열에서 키워드를 찾아 정규화한다.
-    for key in ("single", "multi", "compare", "followup"):
+    for key in ("single", "multi", "followup"):
         if key in label:
             return key
     return ""

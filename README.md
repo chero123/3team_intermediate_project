@@ -1,6 +1,8 @@
 # TTS RAG 초기 아키텍쳐
 
-아키텍쳐에 관한 상세 내용은 [여기](docs/ARCHITECTURE.md)
+- 아키텍쳐에 관한 상세 내용은 [여기](docs/ARCHITECTURE.md)
+- TTS 온닉스 재생에 관한 상세 내용은 [여기](docs/ONNX_TTS.md)
+- SQLite에 관한 상세 내용은 [여기](docs/sqlite.md)
 
 ## 설치 방법
 
@@ -96,9 +98,33 @@ bm25_top_k=8
 mmr_candidate_pool=10
 ```
 
+## 2026-02-06 시도 기록
+아래는 2026-02-06 기준으로 진행한 주요 시도와 결과 요약이다.
+
+- **LangChain SummaryMemory + SQLite 병행 사용 시도**
+  - SQLChatMessageHistory로 SQLite에 대화 기록 저장
+  - ConversationSummaryMemory로 요약 유지/갱신
+- **문제: vLLM 엔진 이중 실행으로 VRAM 부족**
+  - SummaryMemory가 vLLM 래퍼를 새로 띄우면서 **vLLM 엔진이 2개 실행**
+  - RTX 5080 16GB 환경에서 **KV 캐시 메모리 부족으로 엔진 초기화 실패**
+- **OpenAI GPT-5-mini 응답 비어 있음 대응**
+  - reasoning 토큰만 소비하고 텍스트가 비는 케이스 발생
+  - 텍스트가 비면 안전 기본 응답으로 복구하는 방어 로직 추가
+- **컨텍스트 길이 초과 대응**
+  - RRF + MMR + BM25 + RERANK 동시 사용 시 프롬프트 길이 폭발
+  - max_top_k / bm25_top_k / mmr_candidate_pool 감소로 완화 시도
+- **BM25 도입**
+  - BM25 인덱스 별도 저장 (data/index/bm25.pkl)
+  - RRF 결합에서 BM25 가중치 적용
+- **Qwen3-VL 이미지 파싱**
+  - PDF 이미지 추출 + VLM 요약 추가
+  - 로고/빈 이미지 필터링(픽셀/분산/엣지 기준) 적용
+- **UI/CLI 스트리밍 시도**
+  - Gradio 문장 스트리밍 및 TTS 연동 시도
+  - 문장 분리/재생 지연/동기화 이슈로 일괄 재생으로 복귀
+
 ## 추후 작업
 
-- ko-sroberta로 임베딩 모델 교체
 - 웹 UI로 vLLM을 실행 시 고성능 컴퓨터가 요구된다.
 (RAM 부담을 낮추려면 model max lengh 등 vLLM 설정을 조정하거나 k 값을 줄여 컨텍스트 길이를 낮추어야 한다)
 - 성능을 어느 정도 양보해야 할 수 있다.

@@ -4,6 +4,9 @@
 이 문서는 `src/tts_runtime/infer_onnx.py`의 ONNX 기반 TTS 추론 흐름과 입력/출력 형식을 정리한다.  
 현재 사용 모델은 **hobi2k가 커스텀 학습한 TTS 모델을 ONNX로 변환한 것**이다.
 
+## 추가 참고
+- 더 자세한 내용과 배경 설명은 [여기](https://hobi2k.github.io/)를 참고.
+
 ## 구현 위치
 - 추론 진입점: `src/tts_runtime/infer_onnx.py`의 `infer_tts_onnx()`
 - BERT 특징 추출: `BertOnnxRunner`
@@ -121,6 +124,3 @@ PY
 [OUTPUTS]
 - last_hidden_state | dtype=tensor(float) | shape=[1, 'L', 768]
 ```
-
-## 추가 참고
-- 더 자세한 내용과 배경 설명은 [여기](hobi2k.github.io)를 참고.

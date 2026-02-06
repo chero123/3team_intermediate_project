@@ -173,6 +173,19 @@ class SessionMemoryStore:
             return None
         return row[0]
 
+    def get_last_question_type(self, session_id: str) -> Optional[str]:
+        """
+        세션의 마지막 질문 유형을 반환한다.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT last_question_type FROM session_state WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return row[0]
+
     def get_last_turn(self, session_id: str) -> tuple[Optional[str], Optional[str]]:
         """
         세션의 마지막 질문/답변을 함께 반환한다.

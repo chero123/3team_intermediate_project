@@ -27,13 +27,11 @@ from .types import Chunk, ConversationState, RetrievalPlan, RetrievalResult
 
 QUESTION_TYPE_SINGLE = "single"
 QUESTION_TYPE_MULTI = "multi"
-QUESTION_TYPE_COMPARE = "compare"
 QUESTION_TYPE_FOLLOWUP = "followup"
 
 # Heuristic keywords for question classification (LLM 분류 폴백)
-COMPARE_KEYWORDS = ["비교", "차이", "서로", "vs", "대비"]
 FOLLOWUP_KEYWORDS = ["그럼", "그렇다면", "또", "추가로", "더", "이어서", "방금", "앞서"]
-MULTI_KEYWORDS = ["여러", "모든", "각각", "기관"]
+MULTI_KEYWORDS = ["여러", "모든", "각각", "기관", "비교", "차이", "서로", "vs", "대비"]
 
 
 # Query analysis result
@@ -77,12 +75,7 @@ class QueryAnalysisAgent:
         question_type = self._classify_question(question, state)
         metadata_filter = self._extract_metadata_filters(question)
 
-        if question_type == QUESTION_TYPE_COMPARE:
-            top_k = min(self.config.max_top_k, 10)
-            strategy = self.config.rrf_strategy
-            needs_multi_doc = True
-            notes = "comparison detected"
-        elif question_type == QUESTION_TYPE_MULTI:
+        if question_type == QUESTION_TYPE_MULTI:
             top_k = min(self.config.max_top_k, 8)
             strategy = self.config.rrf_strategy
             needs_multi_doc = True
@@ -119,8 +112,6 @@ class QueryAnalysisAgent:
             label = classify_query_type(self.llm, question)
             if label:
                 return label
-        if any(keyword in question for keyword in COMPARE_KEYWORDS):
-            return QUESTION_TYPE_COMPARE
         if any(keyword in question for keyword in FOLLOWUP_KEYWORDS):
             return QUESTION_TYPE_FOLLOWUP
         if state and state.last_user_message() and len(question) < 30:
@@ -144,33 +135,6 @@ class QueryAnalysisAgent:
             filters["project_name"] = project_match.group(1).strip()
 
         return filters
-
-
-# Retrieval plan builder
-class RetrievalOrchestrator:
-    """
-    RetrievalOrchestrator는 QueryAnalysis 결과를 RetrievalPlan으로 변환한다.
-
-    Args:
-        config: 설정 객체
-        llm: OpenAI LLM
-    """
-
-    def __init__(self, config: RAGConfig, llm: Optional[OpenAILLM] = None) -> None:
-        self.config = config
-        self.analyzer = QueryAnalysisAgent(config, llm=llm)
-
-    def plan(self, question: str, state: Optional[ConversationState] = None) -> RetrievalPlan:
-        analysis = self.analyzer.analyze(question, state)
-        return RetrievalPlan(
-            query=question,
-            top_k=analysis.top_k,
-            strategy=analysis.strategy,
-            metadata_filter=analysis.metadata_filter,
-            question_type=analysis.question_type,
-            needs_multi_doc=analysis.needs_multi_doc,
-            notes=analysis.notes,
-        )
 
 
 # Retrieval utilities

@@ -103,6 +103,12 @@ def _ensure_sentence(text: str) -> str:
     return f"{text}."
 
 
+def _is_reference_header(text: str) -> bool:
+    # 참고문헌 블록의 시작인지 판별해 TTS에서 제외한다.
+    stripped = text.strip()
+    return stripped.startswith("[참고 문헌]") or stripped.startswith("참고문헌")
+
+
 def _split_sentence_for_tts(sentence: str, max_words: int = 8, max_chars: int = 90) -> list[str]:
     # TTS는 너무 긴 문장에서 오류/왜곡이 생기므로 짧게 분할한다.
     if len(sentence) <= max_chars:
@@ -212,14 +218,17 @@ def _run_once(pipeline: RAGPipeline, question: str, use_tts: bool, device: str, 
         player_cmd = _select_audio_player(player)
 
     # 3) 문장 단위로 출력/음성 합성을 수행한다.
+    tts_allowed = True
     for sentence in sentences:
         sentence = _ensure_sentence(sentence.strip())
         if not sentence:
             continue
+        if _is_reference_header(sentence):
+            tts_allowed = False
         print(sentence)
 
         # 문장 출력 직후에 음성을 생성해 실시간성을 유지한다.
-        if use_tts:
+        if use_tts and tts_allowed:
             # 문장 -> 더 짧은 조각으로 분할해 안정적으로 합성한다.
             tts_segments = _split_sentence_for_tts(sentence)
             sentence_chunks = []

@@ -17,8 +17,8 @@ from .config import RAGConfig
 from .embeddings import create_embeddings
 from .indexing import FaissVectorStore
 from .memory_store import SessionMemoryStore
-from .openai_llm import OpenAILLM, generate_answer, rewrite_answer
-from .openai_retrieval import CrossEncoderReranker, RetrievalOrchestrator, Retriever, Reranker
+from .openai_llm import OpenAILLM, generate_answer, rewrite_answer, rewrite_query
+from .openai_retrieval import CrossEncoderReranker, QueryAnalysisAgent, Retriever, Reranker
 from .types import ConversationState, RetrievalPlan, RetrievalResult
 
 
@@ -41,6 +41,8 @@ class RAGState(TypedDict):
     answer: str
     # 리라이트된 최종 답변
     rewritten: str
+    # 라우팅 키(single/multi/followup)
+    route_key: str
 
 
 class OpenAIRAGPipeline:
@@ -96,7 +98,7 @@ class OpenAIRAGPipeline:
 
         # 검색기 및 오케스트레이터 구성
         self.retriever = Retriever(self.store, self.config, self.reranker)
-        self.orchestrator = RetrievalOrchestrator(self.config, llm=self.small_llm)
+        self.analyzer = QueryAnalysisAgent(self.config, llm=self.small_llm)
         # 대화 히스토리 저장소
         self.state = ConversationState()
         # 세션별 문서 기억용 SQLite 저장소
@@ -148,17 +150,46 @@ class OpenAIRAGPipeline:
         builder = StateGraph(RAGState)
         # 각 노드를 등록한다.
         builder.add_node("analyze_query", self._node_analyze_query)
-        builder.add_node("retrieve", self._node_retrieve)
+        builder.add_node("route_by_plan", self._route_by_plan)
+        builder.add_node("retrieve_single", self._node_retrieve)
+        builder.add_node("retrieve_multi", self._node_retrieve)
+        builder.add_node("retrieve_followup", self._node_retrieve)
         builder.add_node("generate", self._node_generate)
         builder.add_node("rewrite", self._node_rewrite)
 
         # 실행 순서를 연결한다.
         builder.add_edge(START, "analyze_query")
-        builder.add_edge("analyze_query", "retrieve")
-        builder.add_edge("retrieve", "generate")
+        builder.add_edge("analyze_query", "route_by_plan")
+        builder.add_conditional_edges(
+            "route_by_plan",
+            lambda s: s["route_key"],
+            {
+                "single": "retrieve_single",
+                "multi": "retrieve_multi",
+                "followup": "retrieve_followup",
+            },
+        )
+        builder.add_edge("retrieve_single", "generate")
+        builder.add_edge("retrieve_multi", "generate")
+        builder.add_edge("retrieve_followup", "generate")
         builder.add_edge("generate", "rewrite")
         builder.add_edge("rewrite", END)
         return builder.compile()
+
+    def _route_by_plan(self, state: RAGState) -> dict:
+        """
+        질문 유형에 따라 검색 노드를 분기한다.
+
+        Args:
+            state: 그래프 상태
+
+        Returns:
+            dict: {"route_key": str}
+        """
+        question_type = state["plan"].question_type
+        if question_type in {"multi", "followup"}:
+            return {"route_key": question_type}
+        return {"route_key": "single"}
 
     def _node_analyze_query(self, state: RAGState) -> dict:
         """
@@ -171,15 +202,47 @@ class OpenAIRAGPipeline:
             dict: {"plan": RetrievalPlan}
         """
         # 오케스트레이터가 질문/대화 상태를 보고 플랜을 생성한다.
-        plan = self.orchestrator.plan(state["question"], self.state)
+        analysis = self.analyzer.analyze(state["question"], self.state)
+        plan = RetrievalPlan(
+            query=state["question"],
+            top_k=analysis.top_k,
+            strategy=analysis.strategy,
+            metadata_filter=analysis.metadata_filter,
+            question_type=analysis.question_type,
+            needs_multi_doc=analysis.needs_multi_doc,
+            notes=analysis.notes,
+        )
+        last_question_type = self.memory.get_last_question_type(state["session_id"])
         # 세션 메모리 기반의 followup 판정(명시 키워드 + 짧은 질문 + 유사도) 혼합 규칙
         last_question = self.memory.get_last_question(state["session_id"])
+        last_question_type = self.memory.get_last_question_type(state["session_id"])
         if last_question:
             q = state["question"]
             # 사용자가 명시적으로 문맥 리셋을 요청하면 필터를 비우고 새 질문으로 처리한다.
             if any(keyword in q for keyword in self.config.memory_reset_keywords):
                 self.memory.clear_session_docs(state["session_id"])
             else:
+                # 직전 질문이 multi이면 followup도 multi 전략을 강제한다.
+                if last_question_type == "multi":
+                    plan.question_type = "multi"
+                    plan.needs_multi_doc = True
+                    plan.strategy = self.config.rrf_strategy
+                    plan.metadata_filter = {}
+                    plan.notes = f"{plan.notes}; followup via session memory (force multi)"
+                    doc_ids = self.memory.load_doc_ids(state["session_id"])
+                    if doc_ids:
+                        plan.doc_id_filter = doc_ids
+                    last_q, last_a = self.memory.get_last_turn(state["session_id"])
+                    rewritten = rewrite_query(
+                        self.small_llm,
+                        self.config,
+                        state["question"],
+                        previous_question=last_q,
+                        previous_answer=last_a,
+                    )
+                    if rewritten:
+                        plan.query = rewritten
+                    return {"plan": plan}
                 followup_hint = any(keyword in q for keyword in self.config.memory_followup_keywords)
                 if len(q) < 30:
                     followup_hint = True
@@ -193,15 +256,41 @@ class OpenAIRAGPipeline:
                         self.memory.clear_session_docs(state["session_id"])
                         return {"plan": plan}
                 # followup으로 확정되면 기존 문서 범위를 재사용한다.
-                plan.question_type = "followup"
-                plan.needs_multi_doc = False
-                plan.strategy = self.config.similarity_strategy
+                if plan.question_type != "multi":
+                    plan.question_type = "followup"
+                    plan.needs_multi_doc = False
+                    plan.strategy = self.config.similarity_strategy
+                else:
+                    plan.needs_multi_doc = True
+                    plan.strategy = self.config.rrf_strategy
                 plan.metadata_filter = {}
                 plan.notes = f"{plan.notes}; followup via session memory"
                 # SQLite 세션 메모리에서 직전 검색 문서 ID를 불러와 후속 질문 범위를 제한한다.
                 doc_ids = self.memory.load_doc_ids(state["session_id"])
                 if doc_ids:
                     plan.doc_id_filter = doc_ids
+                last_q, last_a = self.memory.get_last_turn(state["session_id"])
+                rewritten = rewrite_query(
+                    self.small_llm,
+                    self.config,
+                    state["question"],
+                    previous_question=last_q,
+                    previous_answer=last_a,
+                )
+                if rewritten:
+                    plan.query = rewritten
+        # 멀티/후속 질문은 검색용 쿼리로 재작성해 검색 품질을 높인다.
+        if plan.question_type in {"multi", "followup"}:
+            last_q, last_a = self.memory.get_last_turn(state["session_id"])
+            rewritten = rewrite_query(
+                self.small_llm,
+                self.config,
+                state["question"],
+                previous_question=last_q,
+                previous_answer=last_a,
+            )
+            if rewritten:
+                plan.query = rewritten
         return {"plan": plan}
 
     def _node_retrieve(self, state: RAGState) -> dict:

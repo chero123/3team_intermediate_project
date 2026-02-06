@@ -50,7 +50,7 @@ class RAGConfig:
     # LLM 로컬 경로 지정
     llm_model_path: str = "models/A.X-4.0-Light"
     # 임베딩 로컬 경로 지정
-    embedding_model_path: str = "models/ko_sroberta"
+    embedding_model_path: str = "models/bge-m3-ko"
     # 랭커 로컬 경로 지정
     rerank_model_path: str = "models/bge-reranker-v2-m3-ko"
     # 실행 디바이스 설정

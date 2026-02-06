@@ -100,11 +100,29 @@ def _tts_paths():
     return model_path, bert_path, config_path, out_path
 
 
+def _strip_reference_block(text: str) -> str:
+    # TTS에서 참고문헌 블록을 읽지 않도록 제거한다.
+    if not text:
+        return text
+    lines = text.splitlines()
+    cleaned: list[str] = []
+    skipping = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("[참고 문헌]") or stripped.startswith("참고문헌"):
+            skipping = True
+        if skipping:
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
+
+
 def tts_only(text: str, device: str = "cuda") -> str:
     """
     텍스트만 받아 TTS를 수행하고 wav 경로를 반환한다.
     """
     model_path, bert_path, config_path, out_path = _tts_paths()
+    text = _strip_reference_block(text)
     infer_tts_onnx(
         onnx_path=model_path,
         bert_onnx_path=bert_path,
@@ -128,11 +146,12 @@ def ask_with_tts(question: str, provider: str | None = None, session_id: str | N
     # 2) TTS 모델 경로 준비
     model_path, bert_path, config_path, out_path = _tts_paths()
     # 3) TTS 수행 (wav 저장 포함)
+    tts_text = _strip_reference_block(answer)
     audio = infer_tts_onnx(
         onnx_path=model_path,
         bert_onnx_path=bert_path,
         config_path=config_path,
-        text=answer,
+        text=tts_text,
         speaker_id=0,
         language="KR",
         device="cuda",
@@ -193,10 +212,10 @@ def build_gradio():
         answer = ask(message, provider_choice, session_id=session_id)
         history.append({"role": "assistant", "content": answer})
         # 텍스트는 먼저 출력, 오디오는 이후에 업데이트한다.
-        yield history, None
+        yield history, gr.update(value=None, autoplay=True)
         # TTS는 전체 답변을 한 번만 합성한다.
         wav_path = tts_only(answer)
-        yield history, wav_path
+        yield history, gr.update(value=wav_path, autoplay=True)
 
     # ChatGPT 스타일에 더 근접한 레이아웃을 위한 스타일 정의
     css = """
