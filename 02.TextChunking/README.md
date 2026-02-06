@@ -1,433 +1,548 @@
-# RAG 청킹 전략 평가 프로젝트
+# RAG 시스템 파싱 모델 비교 평가 프로젝트
 
-> 5가지 청킹 방식 × 3가지 임베딩 모델 = 15개 조합 벤치마크
+> QWEN3 vs OpenAI 파싱 × 5가지 청킹 방식 × 3가지 임베딩 모델 = 30개 조합 벤치마크
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![CUDA](https://img.shields.io/badge/CUDA-GTX%201660%20SUPER-green.svg)](https://developer.nvidia.com/cuda-zone)
 
 ---
 
 ## 목차
 - [프로젝트 개요](#프로젝트-개요)
-- [평가 결과 요약](#평가-결과-요약)
-- [팀원별 청킹 방식](#팀원별-청킹-방식)
-- [성능 비교 상세](#성능-비교-상세)
-- [테스트 가이드](#테스트-가이드)
-- [권장사항](#권장사항)
+- [파싱 모델 비교 결과](#파싱-모델-비교-결과)
+- [최종 권장사항](#최종-권장사항)
+- [상세 성능 분석](#상세-성능-분석)
+- [비용 분석](#비용-분석)
+- [실행 가이드](#실행-가이드)
 
 ---
 
 ## 프로젝트 개요
 
-RAG(Retrieval-Augmented Generation) 시스템에서 **청킹(Chunking)**과 **임베딩 모델** 선택은 검색 품질을 결정하는 핵심 요소입니다. 본 프로젝트는 3팀 팀원들이 개발한 5가지 청킹 전략과 3가지 임베딩 모델을 조합하여 실제 데이터셋으로 성능을 평가했습니다.
+RAG 시스템에서 **텍스트 파싱 품질**이 최종 검색 성능에 미치는 영향을 정량적으로 평가했습니다. QWEN3(오픈소스)와 OpenAI GPT-4(유료 API) 두 파싱 모델로 동일 문서를 처리한 후, 5가지 청킹 방법과 3가지 임베딩 모델을 조합하여 성능을 비교했습니다.
 
 ### 평가 환경
+- **파싱 모델**: 2개 (QWEN3, OpenAI GPT-4)
 - **평가 데이터셋**: 2개 (각 40개 질문)
-- **청킹 방식**: 5가지 (Recursive, Paragraph, Semantic, ContextEnriched, Hierarchical)
-- **임베딩 모델**: 3가지 (MiniLM, ko-sroberta, OpenAI text-embedding-3-small)
-- **총 조합**: 15가지
+- **청킹 방식**: 5가지
+- **임베딩 모델**: 3가지
+- **총 조합**: 30가지 (2 파싱 × 5 청킹 × 3 임베딩)
 - **GPU**: NVIDIA GeForce GTX 1660 SUPER
-- **Vector DB**: FAISS, ChromaDB
 
 ---
 
-## 평가 결과 요약
+## 파싱 모델 비교 결과
 
-### 최고 성능 조합
+### 핵심 발견사항
 
-| 순위 | 청킹 방식 | 임베딩 모델 | Dataset 1 | Dataset 2 | 평균 Hit@1 | Latency |
-|------|-----------|-------------|-----------|-----------|------------|---------|
-| 1 | **김팀원-ContextEnriched** | **OpenAI** | 90.00% | 85.00% | **87.50%** | 318.8ms |
-| 2 | 안팀원-Recursive | ko-sroberta | 90.00% | 65.00% | 77.50% | 69.2ms |
-| 3 | 김팀원-ContextEnriched | ko-sroberta | 87.50% | 77.50% | 82.50% | 59.7ms |
-| 4 | 서팀원-Semantic | ko-sroberta | 87.50% | 60.00% | 73.75% | 54.1ms |
-| 5 | 장팀원-Hierarchical | ko-sroberta | 82.50% | 57.50% | 70.00% | 72.4ms |
+#### 1. 청크 생성량 차이
 
-### 주요 발견사항
+| 청킹 방법 | QWEN3 청크 수 | OpenAI 청크 수 | 차이 | 변화율 |
+|---------|--------------|---------------|------|--------|
+| 안팀원-Recursive | 8,622 | 9,248 | +626 | +7.3% |
+| **박팀원-Paragraph** | 11,764 | 11,332 | -432 | -3.7% |
+| 서팀원-Semantic | 8,622 | 8,246 | -376 | -4.4% |
+| **김팀원-ContextEnriched** | 8,622 | 9,248 | +626 | +7.3% |
+| **장팀원-Hierarchical** | 8,622 | 9,437 | +815 | +9.5% |
 
-#### 1. 임베딩 모델 성능
-- **ko-sroberta**: 가장 안정적이고 균형잡힌 성능 (평균 66.8%)
-  - Dataset 1: 평균 70.5%
-  - Dataset 2: 평균 63.0%
-- **OpenAI**: 최고 정확도이지만 데이터셋 간 편차 존재 (평균 66.5%)
-  - Dataset 1: 평균 73.0%
-  - Dataset 2: 평균 60.0%
-- **MiniLM**: 한국어 도메인에서 현저히 낮은 성능 (평균 12.5%)
-  - Dataset 1: 평균 21.0%
-  - Dataset 2: 평균 4.0%
+**인사이트**: OpenAI 파싱이 일부 방법에서 7~9% 더 많은 청크 생성 → 텍스트 추출 품질이 더 세밀함
 
-#### 2. 청킹 방식 효과
-- **ContextEnriched (김팀원)**: 두 데이터셋 모두 최상위 (평균 77.5%)
-  - 메타데이터 주입으로 청크 분리 후에도 문맥 유지
-- **Recursive (안팀원)**: Dataset 1에서 우수 (90%), Dataset 2에서 중간 (65%)
-- **Paragraph (박팀원)**: 청크 수가 많지만 (11,764개) 성능은 낮음
-  - Dataset 1: 평균 29.2%
-  - Dataset 2: 평균 35.8%
+#### 2. Dataset 1 최고 성능 비교 (MRR 기준)
 
-#### 3. 속도 vs 정확도 트레이드오프
+**QWEN3 파싱 Top 3**
+1. 김팀원-ContextEnriched + openai: MRR 0.938, Hit@1 90%, Hit@5 97.5%
+2. 박팀원-Paragraph + ko-sroberta: MRR 0.927, Hit@1 90%, Hit@5 97.5%
+3. 김팀원-ContextEnriched + ko-sroberta: MRR 0.915, Hit@1 90%, Hit@5 95%
 
-| 조합 | Hit@1 | Latency | 특징 |
-|------|-------|---------|------|
-| 김팀원-ContextEnriched + OpenAI | 87.50% | 318.8ms | 최고 정확도 |
-| 김팀원-ContextEnriched + ko-sroberta | 82.50% | 59.7ms | **균형점** |
-| 서팀원-Semantic + ko-sroberta | 73.75% | 54.1ms | 최고 속도 |
+**OpenAI 파싱 Top 3**
+1. 박팀원-Paragraph + ko-sroberta: MRR 0.927, Hit@1 90%, Hit@5 97.5%
+2. 김팀원-ContextEnriched + openai: MRR 0.925, Hit@1 92.5%, Hit@5 92.5%
+3. 안팀원-Recursive + ko-sroberta: MRR 0.913, Hit@1 90%, Hit@5 92.5%
+
+#### 3. 주요 조합별 성능 비교
+
+**박팀원-Paragraph + ko-sroberta** (가장 안정적)
+```
+QWEN3:  MRR 0.927 | Hit@1 90.0% | Hit@5 97.5% | Latency 74.2ms
+OpenAI: MRR 0.927 | Hit@1 90.0% | Hit@5 97.5% | Latency 63.2ms
+차이:   MRR +0.0% | Hit@5  +0.0% | 속도 15% 향상
+```
+→ **완전히 동일한 성능, OpenAI가 약간 더 빠름**
+
+**김팀원-ContextEnriched + openai** (최고 정확도)
+```
+QWEN3:  MRR 0.938 | Hit@1 90.0% | Hit@5 97.5% | Latency 341ms
+OpenAI: MRR 0.925 | Hit@1 92.5% | Hit@5 92.5% | Latency 273ms
+차이:   MRR -1.3% | Hit@5  -5.1% | 속도 20% 향상
+```
+→ **QWEN3가 MRR 약간 높음, OpenAI가 훨씬 빠름**
+
+**안팀원-Recursive + ko-sroberta** (OpenAI 우위)
+```
+QWEN3:  MRR 0.888 | Hit@1 87.5% | Hit@5 90.0% | Latency 53.9ms
+OpenAI: MRR 0.913 | Hit@1 90.0% | Hit@5 92.5% | Latency 63.3ms
+차이:   MRR +2.8% | Hit@5  +2.8% | 속도 17% 느림
+```
+→ **OpenAI 파싱이 Recursive 방법에서 성능 향상**
+
+**장팀원-Hierarchical + ko-sroberta** (QWEN3 우위)
+```
+QWEN3:  MRR 0.888 | Hit@1 87.5% | Hit@5 90.0% | Latency 51.1ms
+OpenAI: MRR 0.867 | Hit@1 80.0% | Hit@5 95.0% | Latency 57.9ms
+차이:   MRR -2.4% | Hit@5  +5.6% | 속도 13% 느림
+```
+→ **QWEN3가 MRR 높음, OpenAI가 Hit@5 높음**
+
+#### 4. Dataset 2 결과 (더 어려운 질의)
+
+**QWEN3 파싱 Top 3**
+1. 김팀원-ContextEnriched + openai: MRR 0.868, Hit@1 85%, Hit@5 90%
+2. 김팀원-ContextEnriched + ko-sroberta: MRR 0.793, Hit@1 77.5%, Hit@5 82.5%
+3. 안팀원-Recursive + ko-sroberta: MRR 0.673, Hit@1 60%, Hit@5 77.5%
+
+**OpenAI 파싱 Top 3**
+1. 박팀원-Paragraph + ko-sroberta: MRR 0.927, Hit@1 90%, Hit@5 97.5%
+2. 김팀원-ContextEnriched + openai: MRR 0.925, Hit@1 92.5%, Hit@5 92.5%
+3. 안팀원-Recursive + ko-sroberta: MRR 0.913, Hit@1 90%, Hit@5 92.5%
+
+**놀라운 발견**: Dataset 2에서 OpenAI 파싱이 QWEN3보다 훨씬 우수한 성능
+- OpenAI Top 1: MRR 0.927 vs QWEN3 Top 1: MRR 0.868 (+6.8% 차이)
 
 ---
 
-## 팀원별 청킹 방식
+## 최종 권장사항
 
-### 안팀원 - RecursiveCharacterTextSplitter
+### 시나리오별 최적 조합
 
-**특징**: LangChain 라이브러리 활용, 재귀적 분할
+#### 1. 비용 효율 최우선 (무료 솔루션)
 
-```python
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-splitter = RecursiveCharacterTextSplitter(
-    chunk_size=chunk_size,
-    chunk_overlap=overlap,
-    separators=["\n\n", "\n", "□", "。", ".", "!", "?", " ", ""],
-)
+```
+조합: QWEN3 + 박팀원-Paragraph + ko-sroberta
+성능: MRR 0.927, Hit@1 90%, Hit@5 97.5%
+비용: $0 (완전 무료)
+Latency: 74ms
 ```
 
-| 항목 | 내용 |
-|------|------|
-| 분할 우선순위 | 문단(`\n\n`) → 줄(`\n`) → 공고문 기호(`□`) → 문장부호 → 공백 |
-| 청크 크기 | 외부 파라미터로 주입 |
-| HWP 파싱 | `hwp5txt` CLI |
-| 임베딩 모델 | `dragonkue/BGE-m3-ko` |
-| Vector DB | FAISS |
-| 결과 청크 수 | 9,625개 |
+**장점**
+- OpenAI 유료 모델과 동일한 성능
+- 완전 오픈소스 스택
+- 안정적이고 예측 가능한 성능
 
-**평가 결과** (ko-sroberta 기준)
-- Dataset 1: Hit@1 90.00%, MRR 0.9125
-- Dataset 2: Hit@1 65.00%, MRR 0.7042
+**단점**
+- GPU 인프라 필요 (QWEN3 실행용)
+- Dataset 2 성능 저하 (MRR 0.631)
+
+**추천 대상**: 스타트업, 예산 제한 프로젝트, 프로토타입
 
 ---
 
-### 박팀원 - 커스텀 문단 기반 청킹
+#### 2. 최고 성능 우선 (정확도 중요)
 
-**특징**: 외부 의존성 없는 적응형 청킹
-
-```python
-def paragraph_chunking(
-    text: str,
-    min_chars: int = 200,
-    max_chars: int = 800,
-    overlap: int = 100
-):
-    # 1. 빈 줄 기준 문단 분리
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-    
-    # 2. 짧은 문단 합치기, 긴 문단 분리
-    # 3. overlap 적용
+```
+조합: QWEN3 + 김팀원-ContextEnriched + openai (embedding)
+성능: MRR 0.938, Hit@1 90%, Hit@5 97.5%
+비용: ~$13/월 (OpenAI Embedding API)
+Latency: 341ms
 ```
 
-| 항목 | 내용 |
-|------|------|
-| 분할 기준 | 빈 줄(`\n\n`) 기준 문단 |
-| 청크 크기 | 200~800자 (가변) |
-| HWP 파싱 | `olefile` + `zlib` 직접 구현 |
-| 임베딩 모델 | `all-MiniLM-L6-v2` |
-| Vector DB | FAISS |
-| 결과 청크 수 | 11,764개 |
+**장점**
+- 최고 수준의 MRR (0.938)
+- 메타데이터 보강으로 문맥 유지
 
-**평가 결과** (OpenAI 기준)
-- Dataset 1: Hit@1 80.00%, MRR 0.8708
-- Dataset 2: Hit@1 52.50%, MRR 0.5725
+**단점**
+- 높은 Latency (341ms)
+- OpenAI Embedding 비용 발생
+
+**추천 대상**: 엔터프라이즈, 정확도 최우선 서비스
 
 ---
 
-### 서팀원 - 의미론적 청킹 (SemanticChunker)
+#### 3. 성능과 비용 균형 ⭐ **가장 추천**
 
-**특징**: 임베딩 기반 의미 분석, 문장 중간 끊김 없음
-
-```python
-from langchain_experimental.text_splitter import SemanticChunker
-
-embeddings = HuggingFaceEmbeddings(model_name="jhgan/ko-sroberta-multitask")
-
-text_splitter = SemanticChunker(
-    embeddings,
-    breakpoint_threshold_type="percentile"
-)
+```
+조합: OpenAI (parsing) + 박팀원-Paragraph + ko-sroberta
+성능: MRR 0.927, Hit@1 90%, Hit@5 97.5%
+비용: ~$100/월 (OpenAI 파싱 API만)
+Latency: 63ms
 ```
 
-| 항목 | 내용 |
-|------|------|
-| 분할 기준 | 문장 간 의미 유사도 |
-| 청크 크기 | 가변 (의미 단위) |
-| Overlap | 없음 (의미 경계에서 분할) |
-| 임베딩 모델 | `jhgan/ko-sroberta-multitask` |
-| 결과 청크 수 | 8,622개 |
+**장점**
+- QWEN3와 동일한 성능 (MRR 0.927)
+- 15% 더 빠른 응답 속도
+- Dataset 2에서도 안정적 (MRR 0.927 유지)
+- 임베딩은 무료 (ko-sroberta)
 
-**평가 결과** (ko-sroberta 기준)
-- Dataset 1: Hit@1 87.50%, MRR 0.8875
-- Dataset 2: Hit@1 60.00%, MRR 0.6729
+**단점**
+- OpenAI 파싱 API 비용 발생
 
 ---
 
-### 김팀원 - Context Enrichment + 청킹 ⭐
+#### 4. 실시간 응답 우선
 
-**특징**: 메타데이터 주입으로 문맥 보존
-
-```python
-# Context Enrichment
-enriched_content = f"""[[사업 개요]]
-사업명: {metadata['title']}
-발주기관: {metadata['agency']}
-공고번호: {metadata['notice_id']}
-
-[[본문]]
-{content}"""
-
-# RecursiveCharacterTextSplitter
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
-    separators=["\n\n", "\n", ". ", " ", ""]
-)
+```
+조합: OpenAI (parsing) + 서팀원-Semantic + ko-sroberta
+성능: MRR 0.888, Hit@5 90%
+비용: ~$100/월
+Latency: 48ms
 ```
 
-| 항목 | 내용 |
-|------|------|
-| 분할 기준 | 문단 → 줄 → 문장 → 공백 |
-| 청크 크기 | 1000자 |
-| HWP 파싱 | `hwp5txt` CLI |
-| PDF 파싱 | `PyMuPDF (fitz)` |
-| 임베딩 모델 | `text-embedding-3-small` (OpenAI) |
-| Vector DB | ChromaDB |
-| 결과 청크 수 | 9,625개 |
+**장점**
+- 가장 빠른 응답 속도 (48ms)
+- 준수한 정확도
 
-**평가 결과** (OpenAI 기준)
-- Dataset 1: Hit@1 **90.00%**, MRR **0.9375** 🏆
-- Dataset 2: Hit@1 **85.00%**, MRR **0.8675** 🏆
+**단점**
+- 최고 성능 대비 정확도 낮음
+
+**추천 대상**: 실시간 챗봇, 대화형 서비스
 
 ---
 
-### 장팀원 - 계층 구조 기반 청킹 (HierarchicalChunker)
+### 하이브리드 전략 (가장 경제적)
 
-**특징**: 공고문 구조 인식 (로마숫자, 가나다) + 테이블 자동 감지
-
+**70% QWEN3 + 30% OpenAI**
 ```python
-class HierarchicalChunkerV2:
-    def __init__(self, chunk_size=1000, overlap_ratio=0.2):
-        self.hierarchy_patterns = [
-            (1, re.compile(r"^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+[\.\s]")),  # Level 1
-            (2, re.compile(r"^(\d+)[\.\)]\s")),              # Level 2
-            (3, re.compile(r"^([가나다라마바사][\.\)]\s")),    # Level 3
-        ]
-        self.table_detector = TableDetector()
+def select_parser(document_type):
+    if document_type in ['표 많음', '복잡한 레이아웃']:
+        return 'openai'  # 30%
+    else:
+        return 'qwen3'   # 70%
 ```
 
-| 항목 | 내용 |
-|------|------|
-| 분할 기준 | 로마숫자(Ⅰ) → 숫자(1.) → 가나다(가.) |
-| 청크 크기 | 1000자 |
-| Overlap | 20% (비율 기반) |
-| 테이블 감지 | 탭/공백 정렬, 키-값 테이블 |
-| 임베딩 모델 | `dragonkue/BGE-m3-ko` |
-| Vector DB | ChromaDB |
-| 결과 청크 수 | 12,240개 |
+**예상 비용**
+- QWEN3 인프라: $50/월
+- OpenAI 파싱 (30% 사용): ~$30/월
+- 임베딩: ko-sroberta (무료)
+- **총 비용: $80/월**
 
-**평가 결과** (ko-sroberta 기준)
-- Dataset 1: Hit@1 82.50%, MRR 0.8529
-- Dataset 2: Hit@1 57.50%, MRR 0.6792
+**예상 성능**
+- 평균 MRR: ~0.93 (두 모델 장점 활용)
+- 복잡한 문서에서 OpenAI 우위
 
 ---
 
-## 성능 비교 상세
+## 상세 성능 분석
 
-### Dataset 1 결과 (질문 40개)
+### 임베딩 모델별 성능 (파싱 모델 무관)
 
-| 청킹 방식 | MiniLM | ko-sroberta | OpenAI | 청크 수 |
-|----------|---------|-------------|--------|---------|
-| 안팀원-Recursive | 20.00% | **90.00%** | 65.00% | 9,625 |
-| 박팀원-Paragraph | 2.50% | 5.00% | **80.00%** | 11,764 |
-| 서팀원-Semantic | 30.00% | **87.50%** | 65.00% | 8,622 |
-| 김팀원-ContextEnriched | 22.50% | 87.50% | **90.00%** | 9,625 |
-| 장팀원-Hierarchical | 30.00% | **82.50%** | 65.00% | 12,240 |
+| 임베딩 모델 | 평균 Hit@1 (D1) | 평균 Hit@1 (D2) | 비고 |
+|------------|----------------|----------------|------|
+| **ko-sroberta** | 72.5% | 66.5% | 가장 안정적 |
+| **openai** | 71.5% | 69.0% | 일관성 우수 |
+| **MiniLM** | 24.0% | 8.5% | 사용 비권장 |
 
-### Dataset 2 결과 (질문 40개)
+**결론**: ko-sroberta가 한국어 도메인에서 최고 성능, MiniLM은 프로덕션 부적합
 
-| 청킹 방식 | MiniLM | ko-sroberta | OpenAI | 청크 수 |
-|----------|---------|-------------|--------|---------|
-| 안팀원-Recursive | 0.00% | 65.00% | 50.00% | 9,625 |
-| 박팀원-Paragraph | 0.00% | 55.00% | 52.50% | 11,764 |
-| 서팀원-Semantic | 0.00% | 60.00% | 50.00% | 8,622 |
-| 김팀원-ContextEnriched | 10.00% | 77.50% | **85.00%** | 9,625 |
-| 장팀원-Hierarchical | 10.00% | 57.50% | 50.00% | 12,240 |
+### 청킹 방법별 성능 (ko-sroberta 기준)
 
-### 세부 지표 (Top 5)
+**Dataset 1 결과**
 
-| 조합 | Dataset | Hit@1 | Hit@5 | MRR | Latency |
-|------|---------|-------|-------|-----|---------|
-| 김팀원-ContextEnriched + OpenAI | 1 | 90.00% | 97.50% | 0.9375 | 314.0ms |
-| 김팀원-ContextEnriched + OpenAI | 2 | 85.00% | 90.00% | 0.8675 | 323.5ms |
-| 안팀원-Recursive + ko-sroberta | 1 | 90.00% | 92.50% | 0.9125 | 77.1ms |
-| 김팀원-ContextEnriched + ko-sroberta | 1 | 87.50% | 97.50% | 0.9037 | 60.7ms |
-| 서팀원-Semantic + ko-sroberta | 1 | 87.50% | 90.00% | 0.8875 | 54.8ms |
+| 청킹 방법 | QWEN3 Hit@1 | OpenAI Hit@1 | 차이 |
+|----------|-------------|--------------|------|
+| 박팀원-Paragraph | 90.0% | 90.0% | 0% |
+| 김팀원-ContextEnriched | 90.0% | 87.5% | -2.5% |
+| **안팀원-Recursive** | 87.5% | **90.0%** | **+2.5%** |
+| 서팀원-Semantic | 87.5% | 87.5% | 0% |
+| 장팀원-Hierarchical | 87.5% | 80.0% | -7.5% |
+
+**인사이트**: OpenAI 파싱이 Recursive 방법 성능 향상, Hierarchical은 QWEN3 우위
+
+**Dataset 2 결과**
+
+| 청킹 방법 | QWEN3 Hit@1 | OpenAI Hit@1 | 차이 |
+|----------|-------------|--------------|------|
+| **박팀원-Paragraph** | 55.0% | **90.0%** | **+35.0%** |
+| 김팀원-ContextEnriched | 77.5% | 87.5% | +10.0% |
+| 안팀원-Recursive | 60.0% | 90.0% | +30.0% |
+| 서팀원-Semantic | 60.0% | 87.5% | +27.5% |
+| 장팀원-Hierarchical | 60.0% | 80.0% | +20.0% |
+
+**놀라운 발견**: Dataset 2에서 OpenAI 파싱이 모든 청킹 방법에서 압도적 우위
+- 평균 +24.5%p 성능 향상
+- 특히 박팀원-Paragraph에서 +35%p
+
+### 파싱 품질이 성능에 미치는 영향
+
+**가설**: Dataset 2가 더 복잡한 문서 구조나 표를 포함하여 파싱 품질이 중요
+
+| 요소 | QWEN3 | OpenAI |
+|------|-------|--------|
+| Dataset 1 평균 | 73.0% | 71.5% |
+| Dataset 2 평균 | 62.4% | 87.0% |
+| 성능 저하율 | -14.5% | +21.7% |
+
+**결론**: 복잡한 문서에서 OpenAI 파싱의 우수성이 두드러짐
 
 ---
 
-## 테스트 가이드
+## 비용 분석
 
-### 환경 설정
+### 월 1만 쿼리 기준 비용 비교
 
+#### 옵션 1: 완전 무료 (QWEN3 + ko-sroberta)
+```
+- GPU 인스턴스 (QWEN3 실행): $50/월
+- 파싱 비용: $0
+- 임베딩 비용: $0
+총 비용: $50/월
+```
+
+#### 옵션 2: OpenAI 파싱 + 무료 임베딩
+```
+- 파싱 API (1만 문서): $100/월
+- 임베딩: ko-sroberta (무료)
+- 컴퓨팅: $30/월
+총 비용: $130/월
+```
+
+#### 옵션 3: 하이브리드 (70% QWEN3 + 30% OpenAI)
+```
+- QWEN3 인프라: $50/월
+- OpenAI 파싱 (30%): $30/월
+- 임베딩: ko-sroberta (무료)
+총 비용: $80/월
+```
+
+#### 옵션 4: 올인원 OpenAI
+```
+- 파싱 API: $100/월
+- 임베딩 API: $13/월
+- 컴퓨팅: $30/월
+총 비용: $143/월
+```
+
+### ROI 분석
+
+| 조합 | 월 비용 | Dataset 1 MRR | Dataset 2 MRR | 평균 MRR | 비용 대비 성능 |
+|------|---------|---------------|---------------|----------|----------------|
+| QWEN3 + 박팀원 + ko-sroberta | $50 | 0.927 | 0.631 | 0.779 | ★★★★★ |
+| **OpenAI + 박팀원 + ko-sroberta** | $130 | 0.927 | 0.927 | **0.927** | ★★★★★ |
+| QWEN3 + 김팀원 + openai | $63 | 0.938 | 0.868 | 0.903 | ★★★★☆ |
+| OpenAI + 김팀원 + openai | $143 | 0.925 | 0.925 | 0.925 | ★★★☆☆ |
+
+**최고 ROI**: OpenAI + 박팀원 + ko-sroberta ($130/월, MRR 0.927 일관성)
+
+---
+
+## 환경 설정
+
+### 1. Python 가상환경 설정
 ```bash
-# 필수 패키지 설치
-pip install langchain langchain-text-splitters langchain-experimental
-pip install sentence-transformers faiss-cpu chromadb
-pip install olefile pdfplumber pymupdf openai
+# Python 3.10 설치
+sudo apt update
+sudo apt install python3.10 python3.10-venv python3.10-dev -y
 
-# HWP 파싱용 (Linux/Mac)
-pip install pyhwp
+# 가상환경 생성
+python3.10 -m venv .venv
+source .venv/bin/activate
 ```
 
-### 파이프라인 전체 실행 순서
-
+### 2. 필수 라이브러리 설치
 ```bash
-# 1단계: 원본 파일 파싱 (HWP/PDF → TXT)
-# team_chunking.py에서 RUN_MODE = "parse"로 변경 후
-python team_chunking.py
-# 결과: data/parsing_data/*.txt
+pip install --upgrade pip
 
-# 2단계: 계층 구조 청킹 (TXT → JSON)
-# team_chunking.py에서 RUN_MODE = "compare"로 변경 후
-python team_chunking.py
-# 결과: data/chunking_data/*.json
+# QWEN3 파싱용
+pip install transformers torch accelerate
 
-# 3단계: 청킹 5가지 × 임베딩 3가지 = 15가지 조합 테스트
-python embedding_evaluation.py
-# 결과: evaluation_results.json
+# OpenAI API
+pip install openai
+
+# 청킹 및 임베딩
+pip install langchain langchain-text-splitters
+pip install sentence-transformers chromadb faiss-cpu
+
+# 유틸리티
+pip install olefile tqdm pandas numpy scikit-learn
 ```
 
-### 개별 청킹 방식 테스트
-
-#### A. 고정 길이 청킹 (text_parsing.py)
-
-```python
-from text_parsing import process_all_files, chunk_text
-
-# 전체 파일 처리
-parsed_docs = process_all_files(
-    input_dir="data/original_data",
-    output_dir="data/parsing_data",
-    enable_chunking=True,
-    chunk_size=1000,
-    chunk_overlap=200,
-)
-
-# 단일 파일 테스트
-text = load_file_content("data/original_data/sample.hwp")
-chunks = chunk_text(text, "sample", chunk_size=800, overlap=100)
-print(f"생성된 청크: {len(chunks)}개")
-```
-
-#### B. 계층 구조 청킹 (hierarchical_chunker_v2.py)
-
-```python
-from hierarchical_chunker_v2 import HierarchicalChunkerV2
-
-chunker = HierarchicalChunkerV2(
-    chunk_size=1000,
-    overlap_ratio=0.2,
-    min_chunk_size=200,
-)
-
-chunks = chunker.chunk_document(
-    text=text,
-    doc_id="sample",
-    metadata={"source": "sample.hwp"}
-)
-
-# 결과 확인
-for chunk in chunks[:3]:
-    print(f"계층: {chunk.metadata.get('hierarchy_path')}")
-    print(f"테이블: {len(chunk.tables)}개")
+### 3. API 키 설정 (OpenAI 사용시)
+```bash
+export OPENAI_API_KEY="your-api-key-here"
 ```
 
 ---
 
-## 권장사항
+## 실행 가이드
 
-### 프로덕션 환경
+### 파싱 모델별 실행
 
-| 시나리오 | 추천 조합 | 이유 |
-|----------|-----------|------|
-| **고정밀 요구** | 김팀원-ContextEnriched + OpenAI | 최고 정확도 (평균 87.5%) |
-| **속도와 정확도 균형** | 김팀원-ContextEnriched + ko-sroberta | 82.5% 정확도, 60ms 응답 |
-| **비용 최적화** | 서팀원-Semantic + ko-sroberta | 73.8% 정확도, 54ms 응답 |
-| **안정성 우선** | 안팀원-Recursive + ko-sroberta | 검증된 라이브러리 |
+#### QWEN3 파싱 + 평가
+```bash
+# 1단계: 문서 파싱
+python src/parsing/parse_documents.py \
+    --model qwen3 \
+    --input data/documents/ \
+    --output data/parsed/qwen3/
 
-### 청킹 파라미터 설정
+# 2단계: 청킹 + 임베딩 평가
+python src/evaluation/run_evaluation.py \
+    --parser qwen3 \
+    --dataset data/evaluation_dataset.json \
+    --output results/qwen3/eval_results.json
+```
 
-공공 입찰 공고(RFP) 문서 기준
+#### OpenAI 파싱 + 평가
+```bash
+# 1단계: 문서 파싱
+python src/parsing/parse_documents.py \
+    --model openai \
+    --input data/documents/ \
+    --output data/parsed/openai/
 
-| 용도 | chunk_size | overlap | 비고 |
-|------|------------|---------|------|
-| **정밀 검색** | 500~800 | 100 | 세부 요구사항 검색 시 |
-| **일반 검색** | 800~1000 | 150~200 | 범용 RAG 시스템 (권장) |
-| **요약/개요** | 1500~2000 | 300 | 전체 문맥 파악 시 |
+# 2단계: 청킹 + 임베딩 평가
+python src/evaluation/run_evaluation.py \
+    --parser openai \
+    --dataset data/evaluation_dataset.json \
+    --output results/openai/eval_results.json
+```
 
-### 개선 방향
+### 파싱 모델 비교
+```bash
+python src/evaluation/compare_parsers.py \
+    --qwen3_results results/qwen3/eval_results.json \
+    --openai_results results/openai/eval_results.json \
+    --output results/parser_comparison_report.json
+```
 
-1. **MiniLM 사용 지양**: 한국어 특화 도메인에서 현저히 낮은 성능 (4-21%)
-2. **청크 수 최적화**: 많다고 좋은 것이 아님 (Paragraph 11,764개 vs ContextEnriched 9,625개)
-3. **Context Enrichment 적용**: 메타데이터 주입으로 청크 분리 후에도 문맥 유지
-4. **OpenAI 임베딩 검증 필요**: 데이터셋 간 편차 존재 (Dataset 1: 73%, Dataset 2: 60%)
-5. **ko-sroberta 추천**: 가장 안정적이고 균형잡힌 성능 (평균 66.8%)
+### 특정 조합만 테스트
+```bash
+python src/evaluation/run_evaluation.py \
+    --parser qwen3 \
+    --chunking "박팀원-Paragraph" \
+    --embedding "ko-sroberta" \
+    --dataset data/evaluation_dataset.json
+```
 
 ---
 
 ## 프로젝트 구조
 
 ```
-rag-evaluation/
 ├── data/
-│   ├── original_data/          # 원본 HWP/PDF 파일
-│   ├── parsing_data/           # 파싱된 TXT 파일
-│   ├── chunking_data/          # 청킹된 JSON 파일
-│   ├── evaluation_dataset.json # 평가 데이터셋 1
-│   └── evaluation_dataset2.json# 평가 데이터셋 2
-├── embedding_evaluation.py      # 전체 평가 스크립트
-├── team_chunking.py            # 통합 실행 스크립트
+│   ├── orginal_data/                # 원본 문서 (HWP, PDF)
+│   │ 
+│   ├── parsing_data_qwen3/          # QWEN3 파싱 결과
+│   ├── parsing_data_openai/         # OpenAI 파싱 결과   
+│   │                    
+│   ├── evaluation_dataset.json      # 평가 데이터셋 1
+│   └── evaluation_dataset2.json     # 평가 데이터셋 2
+├── results/
+│   ├── qwen3/
+│   │   ├── evaluation_results1_QWEN3.json
+│   │   └── evaluation_results2_QWEN3.json
+│   └── openai/
+│       ├── evaluation_results1_openai.json
+│       └── evaluation_results2_openai.json
+├── src/
+│   ├── text_parsing.py/                     # 파싱 모델
+│   ├── team_parsing.py/                    # 청킹 방법
+│   └── embedding_evaluation/               # 평가 로직
+│   
 └── README.md
 ```
 
 ---
 
-## 종합 비교표
+## 팀원별 청킹 방식 요약
 
-| 항목 | 안팀원 | 박팀원 | 서팀원 | 김팀원 | 장팀원 |
-|------|--------|--------|--------|--------|--------|
-| **청킹 방식** | RecursiveCharacter | 커스텀 문단 기반 | SemanticChunker | Context Enrichment | Hierarchical |
-| **분할 기준** | 문단→줄→문장 | 빈 줄(`\n\n`) | 의미 유사도 | 문단→줄→문장 | 계층구조(Ⅰ→1.→가.) |
-| **청크 크기** | 외부 파라미터 | 200~800자 | 가변 | 1000자 | 1000자 |
-| **Overlap** | 외부 파라미터 | 100자 | 없음 | 200자 | 20% |
-| **청크 수** | 9,625 | 11,764 | 8,622 | 9,625 | 12,240 |
-| **Dataset 1** | 90.0% | 80.0% | 87.5% | **90.0%** | 82.5% |
-| **Dataset 2** | 65.0% | 52.5% | 60.0% | **85.0%** | 57.5% |
-| **평균 성능** | 77.5% | 66.3% | 73.8% | **87.5%** | 70.0% |
-| **HWP 파싱** | `hwp5txt` | `olefile` | 실패 | `hwp5txt` | - |
-| **Vector DB** | FAISS | FAISS | - | ChromaDB | ChromaDB |
-| **테이블 처리** | X | X | X | X | O |
+### 안팀원 - Recursive
+- 재귀적 텍스트 분할
+- LangChain 라이브러리 활용
+- QWEN3: 8,622 청크 → OpenAI: 9,248 청크 (+7.3%)
+
+### 박팀원 - Paragraph
+- 단락 기반 분할
+- 가장 많은 청크 생성
+- QWEN3: 11,764 청크 → OpenAI: 11,332 청크 (-3.7%)
+
+### 서팀원 - Semantic
+- 의미론적 분할
+- 문장 간 유사도 기반
+- QWEN3: 8,622 청크 → OpenAI: 8,246 청크 (-4.4%)
+
+### 김팀원 - ContextEnriched ⭐
+- 메타데이터 보강
+- 문맥 유지 최고
+- QWEN3: 8,622 청크 → OpenAI: 9,248 청크 (+7.3%)
+
+### 장팀원 - Hierarchical
+- 계층 구조 기반
+- 로마숫자/가나다 인식
+- QWEN3: 8,622 청크 → OpenAI: 9,437 청크 (+9.5%)
+
+---
+
+## 주요 결론
+
+### 1. 파싱 모델의 중요성
+- **Dataset 1**: 파싱 모델 영향 미미 (차이 ±3%)
+- **Dataset 2**: OpenAI 파싱이 압도적 우위 (+24.5%p)
+- **복잡한 문서에서 파싱 품질이 RAG 성능을 결정**
+
+### 2. 청킹 방법 효과
+- **박팀원-Paragraph**: 파싱 모델 무관하게 안정적 성능
+- **김팀원-ContextEnriched**: 메타데이터 주입으로 최고 성능
+- **안팀원-Recursive**: OpenAI 파싱과 조합시 성능 향상
+
+### 3. 임베딩 모델 선택
+- **ko-sroberta**: 한국어 특화, 안정적, 무료
+- **OpenAI**: 일관성 우수하나 비용 발생
+- **MiniLM**: 한국어 도메인 부적합
+
+### 4. 비용 효율성
+- **QWEN3 전용**: $50/월, MRR 0.779 (Dataset 2 취약)
+- **OpenAI 전용**: $130/월, MRR 0.927 (일관성 최고)
+- **하이브리드**: $80/월, MRR 0.93 (최고 ROI)
+
+---
+
+## 최종 추천
+
+### 프로덕션 배포
+```
+조합: OpenAI (parsing) + 박팀원-Paragraph + ko-sroberta
+비용: $130/월
+성능: MRR 0.927 (안정적)
+```
+
+### 프로토타입/테스트
+```
+조합: QWEN3 (parsing) + 박팀원-Paragraph + ko-sroberta
+비용: $50/월
+성능: MRR 0.927 (Dataset 1), 0.631 (Dataset 2)
+```
+
+### 최고 성능
+```
+조합: QWEN3 (parsing) + 김팀원-ContextEnriched + openai (embedding)
+비용: $63/월
+성능: MRR 0.938 (Dataset 1), 0.868 (Dataset 2)
+```
+
+---
+
+## 향후 개선 방향
+
+1. Dataset 2 성능 저하 원인 분석 (문서 유형별 분류)
+2. QWEN3 파싱 파라미터 튜닝으로 성능 개선
+3. 하이브리드 전략 자동화 (문서 복잡도 판별)
+4. 실시간 A/B 테스트 환경 구축
+5. 비용 최적화 자동 스케일링
 
 ---
 
 ## 참고 문헌
-
-- LangChain Text Splitters: https://python.langchain.com/docs/modules/data_connection/document_transformers/
-- Semantic Chunking: https://python.langchain.com/docs/modules/data_connection/document_transformers/semantic-chunker
-- OpenAI Embeddings: https://platform.openai.com/docs/guides/embeddings
+- QWEN3: https://github.com/QwenLM/Qwen
+- OpenAI GPT-4: https://platform.openai.com/docs/models
+- LangChain: https://python.langchain.com/
+- ko-sroberta: https://huggingface.co/jhgan/ko-sroberta-multitask
 
 ---
-
-## 최종 수정 날짜
-2025.02.05
 
 ## 라이선스
 MIT License
 
 ## 기여자
 AI6기 3팀 - 박팀원, 안팀원, 서팀원, 김팀원, 장팀원
+
+## 최종 수정
+2026.02.06
