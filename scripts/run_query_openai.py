@@ -156,13 +156,6 @@ def _ensure_sentence(text: str) -> str:
     return f"{text}."
 
 
-def _is_reference_header(text: str) -> bool:
-    """
-    참고문헌 블록의 시작인지 판별해 TTS에서 제외한다.
-    """
-    stripped = text.strip()
-    return stripped.startswith("[참고 문헌]") or stripped.startswith("참고문헌")
-
 
 def _split_sentence_for_tts(sentence: str, max_words: int = 8, max_chars: int = 90) -> list[str]:
     """
@@ -322,17 +315,14 @@ def _run_once(pipeline: OpenAIRAGPipeline, question: str, use_tts: bool, device:
         # 재생 플레이어 커맨드 결정
         player_cmd = _select_audio_player(player)
 
-    tts_allowed = True
     for sentence in sentences:
         sentence = _ensure_sentence(sentence.strip())
         if not sentence:
             continue
-        if _is_reference_header(sentence):
-            tts_allowed = False
         # 문장 텍스트를 먼저 출력
         print(sentence)
 
-        if use_tts and tts_allowed:
+        if use_tts:
             # 긴 문장을 TTS 세그먼트로 분할
             tts_segments = _split_sentence_for_tts(sentence)
             sentence_chunks = []

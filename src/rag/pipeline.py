@@ -195,6 +195,9 @@ class RAGPipeline:
             needs_multi_doc=analysis.needs_multi_doc,
             notes=analysis.notes,
         )
+        # 질문에 기관명/사업명/파일명이 명시되면 새 문맥으로 강제 리셋한다.
+        if analysis.metadata_filter:
+            self.memory.clear_session_docs(state["session_id"])
         last_question_type = self.memory.get_last_question_type(state["session_id"])
         # 세션 메모리 기반의 followup 판정(명시 키워드 + 짧은 질문 + 유사도) 혼합 규칙
         last_question = self.memory.get_last_question(state["session_id"])
@@ -229,15 +232,6 @@ class RAGPipeline:
                 followup_hint = any(keyword in q for keyword in self.config.memory_followup_keywords)
                 if len(q) < 30:
                     followup_hint = True
-                if not followup_hint:
-                    # 질문 유사도가 낮으면 문맥 전환으로 보고 필터를 해제한다.
-                    q_vec = np.asarray(self.embeddings.embed_query(q), dtype=np.float32)
-                    last_vec = np.asarray(self.embeddings.embed_query(last_question), dtype=np.float32)
-                    denom = float(np.linalg.norm(q_vec) * np.linalg.norm(last_vec)) or 1.0
-                    similarity = float(np.dot(q_vec, last_vec) / denom)
-                    if similarity < self.config.memory_similarity_threshold:
-                        self.memory.clear_session_docs(state["session_id"])
-                        return {"plan": plan}
                 # followup으로 확정되면 기존 문서 범위를 재사용한다.
                 if plan.question_type != "multi":
                     plan.question_type = "followup"

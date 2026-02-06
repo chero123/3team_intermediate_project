@@ -134,6 +134,21 @@ class QueryAnalysisAgent:
         if project_match:
             filters["project_name"] = project_match.group(1).strip()
 
+        file_match = re.search(
+            r"([가-힣A-Za-z0-9_\\-\\s\\(\\)\\[\\]]+?)\\.(hwp|pdf|docx|doc)",
+            question,
+            flags=re.IGNORECASE,
+        )
+        if file_match:
+            filters["filename"] = file_match.group(1).strip()
+        else:
+            name_match = re.search(r"([가-힣A-Za-z0-9_\\-\\s\\(\\)\\[\\]]+_[가-힣A-Za-z0-9_\\-\\s\\(\\)\\[\\]]+)", question)
+            if name_match:
+                base_name = name_match.group(1).strip()
+                base_name = re.sub(r"(을|를|은|는|이|가|와|과)$", "", base_name).strip()
+                if base_name:
+                    filters["filename"] = base_name
+
         return filters
 
 

@@ -13,7 +13,7 @@ import gradio as gr
 
 from rag.pipeline import RAGPipeline
 from rag.openai_pipeline import OpenAIRAGPipeline
-from tts_runtime.infer_onnx import infer_tts_onnx, get_hparams_from_file
+from tts_runtime.infer_onnx import infer_tts_onnx
 
 
 def _build_pipeline(provider: str):
@@ -75,14 +75,6 @@ def _tts_paths():
     return model_path, bert_path, config_path, out_path
 
 
-def _get_tts_sr(config_path: str) -> int:
-    """
-    TTS 샘플레이트를 설정 파일에서 가져온다.
-    """
-    hps = get_hparams_from_file(config_path)
-    return int(hps.data.sampling_rate)
-
-
 def _strip_reference_block(text: str) -> str:
     # TTS에서 참고문헌 블록을 읽지 않도록 제거한다.
     if not text:
@@ -117,31 +109,6 @@ def tts_only(text: str, device: str = "cuda") -> str:
         out_path=out_path,
     )
     return out_path
-
-
-def ask_with_tts(question: str, provider: str | None = None, session_id: str | None = None):
-    """
-    질문 -> 답변 생성 -> TTS wav 생성까지 수행한다.
-    """
-    # 1) 텍스트 답변 생성
-    # session_id는 SQLite 세션 메모리에서 문맥을 복원하는 데 사용된다.
-    answer = ask(question, provider, session_id=session_id)
-    # 2) TTS 모델 경로 준비
-    model_path, bert_path, config_path, out_path = _tts_paths()
-    # 3) TTS 수행 (wav 저장 포함)
-    tts_text = _strip_reference_block(answer)
-    audio = infer_tts_onnx(
-        onnx_path=model_path,
-        bert_onnx_path=bert_path,
-        config_path=config_path,
-        text=tts_text,
-        speaker_id=0,
-        language="KR",
-        device="cuda",
-        out_path=out_path,
-    )
-    # Gradio에는 파일 경로만 넘겨도 자동 로딩된다.
-    return answer, out_path
 
 
 def _extract_last_turn(history: list[dict[str, str]]) -> tuple[str | None, str | None]:

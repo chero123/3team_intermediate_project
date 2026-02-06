@@ -176,6 +176,24 @@ class QueryAnalysisAgent:
         if project_match:
             filters["project_name"] = project_match.group(1).strip()
 
+        # 파일명이 질문에 있으면 확장자를 제거한 base 이름으로 필터링한다.
+        file_match = re.search(
+            r"([가-힣A-Za-z0-9_\-\s\(\)\[\]]+?)\.(hwp|pdf|docx|doc)",
+            question,
+            flags=re.IGNORECASE,
+        )
+        if file_match:
+            filters["filename"] = file_match.group(1).strip()
+        else:
+            # 확장자가 생략된 경우를 위해, 밑줄을 포함한 파일명 패턴을 보조적으로 추출한다.
+            name_match = re.search(r"([가-힣A-Za-z0-9_\-\s\(\)\[\]]+_[가-힣A-Za-z0-9_\-\s\(\)\[\]]+)", question)
+            if name_match:
+                base_name = name_match.group(1).strip()
+                # 조사 제거(예: "…를", "…은" 등)
+                base_name = re.sub(r"(을|를|은|는|이|가|와|과)$", "", base_name).strip()
+                if base_name:
+                    filters["filename"] = base_name
+
         return filters
 
 

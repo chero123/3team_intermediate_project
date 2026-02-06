@@ -60,6 +60,27 @@ def _doc_to_chunk(doc: LCDocument) -> Chunk:
     # 검색 결과를 파이프라인에서 쓰는 Chunk 타입으로 변환한
     return Chunk(id=chunk_id, text=doc.page_content, metadata=metadata)
 
+def _normalize_filename_base(value: str) -> str:
+    """
+    파일명 비교를 위해 확장자를 제거하고 공백을 정리한다.
+    """
+    base = os.path.splitext(value)[0]
+    return " ".join(base.strip().split())
+
+def _metadata_matches(chunk: Chunk, metadata_filter: dict) -> bool:
+    """
+    메타데이터 필터가 일치하는지 확인한다.
+    """
+    for key, expected in metadata_filter.items():
+        actual = chunk.metadata.get(key, "")
+        if key == "filename":
+            if _normalize_filename_base(str(actual)) != _normalize_filename_base(str(expected)):
+                return False
+        else:
+            if str(actual) != str(expected):
+                return False
+    return True
+
 
 class FaissVectorStore:
     """
@@ -137,7 +158,7 @@ class FaissVectorStore:
         for doc, score in results:
             chunk = _doc_to_chunk(doc)
             if metadata_filter:
-                if any(str(chunk.metadata.get(k)) != str(v) for k, v in metadata_filter.items()):
+                if not _metadata_matches(chunk, metadata_filter):
                     continue
             filtered.append((chunk, float(score)))
         # 최종 top_k만 반환한다.
@@ -172,7 +193,7 @@ class FaissVectorStore:
         chunks = [_doc_to_chunk(doc) for doc in docs]
         # MMR 결과에도 동일한 메타데이터 필터를 적용한다.
         if metadata_filter:
-            chunks = [c for c in chunks if not any(str(c.metadata.get(k)) != str(v) for k, v in metadata_filter.items())]
+            chunks = [c for c in chunks if _metadata_matches(c, metadata_filter)]
         # 최종 top_k로 자른다.
         return chunks[:top_k]
 

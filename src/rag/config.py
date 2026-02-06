@@ -144,5 +144,3 @@ class RAGConfig:
     memory_followup_keywords: list[str] = field(
         default_factory=lambda: ["그거", "그것", "앞서", "방금", "둘 중", "추가로", "더", "이어서"]
     )
-    # 질문 간 유사도 임계값 (이보다 낮으면 문맥 전환으로 판단)
-    memory_similarity_threshold: float = 0.7

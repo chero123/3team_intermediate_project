@@ -233,6 +233,36 @@ def _vlm_extract_from_image(image: Image.Image, config: RAGConfig) -> str:
         return ""
 
 
+def _is_useful_vlm_text(text: str) -> bool:
+    """
+    VLM 출력이 의미 있는 수치/지표를 포함하는지 판단한다.
+
+    - 숫자가 포함되지 않으면 무의미한 설명으로 간주한다.
+    - "no data", "없음" 등 부정 표현만 있는 경우는 제외한다.
+    """
+    if not text:
+        return False
+    # 숫자가 하나도 없으면 표/수치 정보가 없다고 판단한다.
+    if not re.search(r"\d", text):
+        return False
+    lowered = text.lower()
+    # 명시적 "무데이터" 메시지는 제외한다.
+    no_data_phrases = [
+        "no data",
+        "데이터 없음",
+        "수치 없음",
+        "표 없음",
+        "그래프 없음",
+        "지표 없음",
+        "없음",
+        "없습니다",
+        "불가능",
+    ]
+    if any(phrase in lowered for phrase in no_data_phrases):
+        return False
+    return True
+
+
 def _extract_pdf_images_with_vlm(path: str, config: RAGConfig) -> str:
     """
     PDF 페이지 이미지를 렌더링하고 Qwen3-VL로 텍스트를 추출한다.
@@ -283,6 +313,9 @@ def _extract_pdf_images_with_vlm(path: str, config: RAGConfig) -> str:
                     continue
                 # VLM 추론 실행
                 text = _vlm_extract_from_image(image, config)
+                # 수치/지표가 없는 출력은 버린다.
+                if not _is_useful_vlm_text(text):
+                    continue
                 print(
                     f"[VLM] page={page_index + 1} image={img_index + 1} "
                     f"text_len={len(text)}"
