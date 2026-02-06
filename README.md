@@ -30,7 +30,7 @@ uv sync
 - 웹 UI로 vLLM을 실행 시 고성능 컴퓨터가 요구된다.
 - GPT-5 계열은 추론 모델이라 GPT-4 계열과 달리 높은 토큰 수 상한이 필요
 - CLI에서 run_query 실행 시 음성에 잡음이 끼는 현상이 있는데, 실제 생성된 음성 파일과 WebUI 등으로 확인 시에는 잡음이 없다.
-- Gradio, Streamlit과 같은 데모 프레임워크로는 실시간 합성을 실현할 수 없다.
+- Gradio, Streamlit과 같은 데모 프레임워크로는 실시간 합성 실현이 어렵다.
 - 실시간 음성 합성을 재현하려면 FastAPI + 커스텀 프론트나 다른 방식을 사용해야 한다.
 - Qwen3-VL 이미지 파싱(8b 기준)은 무겁지만 성능이 괜찮다. 
 
@@ -111,6 +111,18 @@ mmr_candidate_pool=10
   - RTX 5080 16GB 환경에서 **KV 캐시 메모리 부족으로 엔진 초기화 실패**
 
 > **SQLITE만 사용 결정** 
+
+- **Gradio 음성 스트리밍 시도**
+  - [Gradio 스트리밍 가이드](https://www.gradio.app/guides/streaming-outputs)를 바탕으로 스트리밍을 시도
+  - 끊김 현상이 증가함
+  - 스트리밍, 비-스트리밍 모두 첫 턴 이후 자동 재생이 안 된다.
+  - **자동 재생 실패 원인**: 브라우저 자동재생 정책 + Gradio가 오디오 DOM을 매 턴 교체하면서 `src` 갱신 타이밍이 어긋남
+  - **구현한 자동재생 재시도 로직**
+    - `send` 클릭 시 `userInteracted = true` 설정
+    - `loadeddata/canplay/loadedmetadata/durationchange` 이벤트에서 `play()` 호출
+    - `MutationObserver`로 `src` 변경 감지 후 즉시 `play()` 재시도
+    - `setInterval(500ms)`로 `audio.paused && audio.src` 상태를 주기적으로 검사하며 재시도
+    - `send` 클릭 직후 250ms 간격으로 다회 재시도하여 DOM 교체 타이밍 흡수
 
 ## 추후 작업
 

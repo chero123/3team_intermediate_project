@@ -41,6 +41,7 @@
 7. `FaissVectorStore.save()`가 인덱스를 `data/index`에 저장한다.
 8. 상태 파일 `data/index_status.json`이 완료 상태로 업데이트된다.
 9. 샘플 청크가 `data/chunk_preview.json`에 저장된다.
+10. 인덱싱 자체는 SQLite를 사용하지 않는다.
 
 ## 실행 흐름
 1. `scripts/run_query.py`가 실행된다.
@@ -58,6 +59,9 @@
    - `generate`: 컨텍스트를 기반으로 답변을 생성한다.
    - `rewrite`: 생성 답변을 스타일 규칙에 맞게 리라이트한다.
 4. 답변이 출력되고, 선택 시 TTS가 수행된다.
+5. 실행 단계에서 SQLite 세션 메모리가 동작한다.
+   - 세션별 문서 ID, 마지막 질문/답변, 질문 유형을 기록한다.
+   - followup일 때 이전 문서 집합을 필터로 재사용한다.
 
 ## SQLite 멀티턴 메모리
 - 멀티턴에서 이전 턴 문서 집합을 재사용하기 위해 **SQLite 기반 세션 메모리**를 사용한다.
@@ -67,6 +71,13 @@
   이전 턴은 참고용으로만 제공된다.
 - followup/multi 질문은 **검색 전용 쿼리 리라이트**를 수행해 검색 품질을 개선한다.
 - 구현/사용법/스키마 상세는 `docs/sqlite.md`를 참고한다.
+
+## 피드백 저장(좋아요/싫어요)
+- Gradio UI에서 👍/👎 입력을 받으면 SQLite `feedback` 테이블에 저장한다.
+- 저장되는 값:
+  - `session_id`, `provider`, `question`, `answer`, `rating(1/-1)`, `created_at`
+- CLI에서는 피드백을 기록하지 않는다.
+- 조회 방법은 `docs/sqlite.md`의 **SQLite CLI 조회**를 참고한다.
 
 ## Qwen3-VL 상세 문서
 - Qwen3-VL 8B 기능/코드/사용법은 `docs/QWEN3_VL.md` 참고
@@ -129,6 +140,20 @@
 - 주의사항:
   - Gradio 기본 Audio 컴포넌트는 **연속 스트리밍 재생을 지원하지 않는다**
     (새 오디오가 들어오면 재생이 초기화됨)
+  - 브라우저 자동재생 정책 때문에 **사용자 제스처(클릭/키다운)** 없이는 재생이 막힐 수 있다.
+  - 자동재생 안정화를 위해 **재시도 로직을 명시적으로 구현**했다.
+    - `send` 버튼 클릭 시 `userInteracted = true`로 설정
+    - 오디오 요소에서 `loadeddata/canplay/loadedmetadata/durationchange` 이벤트가 발생하면 `play()` 호출
+    - 오디오 `src` 속성 변경을 `MutationObserver`로 감지해 즉시 `play()` 재시도
+    - `setInterval`(500ms)로 `audio.paused && audio.src` 상태를 주기적으로 검사하며 재생 재시도
+    - `send` 클릭 직후에도 250ms 간격으로 여러 번 재시도해 DOM 교체 타이밍을 흡수
+
+#### 용어 정리 (UI/자동재생 관련)
+- **DOM (Document Object Model)**: 브라우저가 HTML을 트리 구조로 변환한 객체 모델. JS로 요소를 탐색/수정/이벤트 연결.
+- **`src`**: `<audio>`, `<img>` 등 리소스 로딩 요소의 경로/URL 속성. 변경 시 새 리소스 로드가 시작됨.
+- **MutationObserver**: DOM 변화(요소 교체, 속성 변경 등)를 감지하는 브라우저 API. `src` 변경 시 재생 재시도 트리거에 사용.
+- **loadeddata / canplay / loadedmetadata / durationchange**: `<audio>`가 로드되거나 재생 가능한 시점에 발생하는 이벤트. `play()` 호출 타이밍으로 사용.
+- **User Gesture(사용자 제스처)**: 브라우저 자동재생 제한을 해제하는 클릭/키다운 등 사용자 입력. 최초 1회 필요.
 
 ## ONNX TTS 상세 문서
 - `docs/ONNX_TTS.md` 참고

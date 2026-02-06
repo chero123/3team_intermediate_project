@@ -64,7 +64,7 @@ class RAGConfig:
     # OpenAI 모델 이름
     openai_model: str = "gpt-5-mini"
     # OpenAI Gpt-5 계열용 맥스 토큰 설정
-    openai_gpt5_max_tokens: int = 1000
+    openai_gpt5_max_tokens: int = 1200
 
     # 임베딩 배치 크기 설정 (GPU 메모리와 속도 균형)
     embedding_batch_size: int = 32

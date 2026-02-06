@@ -13,7 +13,7 @@ import gradio as gr
 
 from rag.pipeline import RAGPipeline
 from rag.openai_pipeline import OpenAIRAGPipeline
-from tts_runtime.infer_onnx import infer_tts_onnx
+from tts_runtime.infer_onnx import infer_tts_onnx, get_hparams_from_file
 
 
 def _build_pipeline(provider: str):
@@ -73,6 +73,14 @@ def _tts_paths():
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"tts_{uuid.uuid4().hex}.wav")
     return model_path, bert_path, config_path, out_path
+
+
+def _get_tts_sr(config_path: str) -> int:
+    """
+    TTS 샘플레이트를 설정 파일에서 가져온다.
+    """
+    hps = get_hparams_from_file(config_path)
+    return int(hps.data.sampling_rate)
 
 
 def _strip_reference_block(text: str) -> str:
@@ -221,9 +229,9 @@ def build_gradio():
         history.append({"role": "assistant", "content": answer})
         # 텍스트는 먼저 출력, 오디오는 이후에 업데이트한다.
         yield history, None
-        # TTS는 전체 답변을 한 번만 합성한다.
+        # TTS는 전체 답변을 한 번에 합성해 품질을 보장한다.
         wav_path = tts_only(answer)
-        yield history, gr.update(value=wav_path, autoplay=True)
+        yield history, wav_path
 
     # ChatGPT 스타일에 더 근접한 레이아웃을 위한 스타일 정의
     css = """
@@ -351,7 +359,12 @@ def build_gradio():
                         elem_classes="rag-input",
                     )
                     with gr.Row():
-                        send_btn = gr.Button("보내기", variant="primary", elem_classes="rag-send")
+                        send_btn = gr.Button(
+                            "보내기",
+                            variant="primary",
+                            elem_classes="rag-send",
+                            elem_id="send-btn",
+                        )
                         clear_btn = gr.Button("초기화", elem_classes="rag-clear")
                         like_btn = gr.Button("👍", elem_classes="rag-clear")
                         dislike_btn = gr.Button("👎", elem_classes="rag-clear")
@@ -365,7 +378,90 @@ def build_gradio():
                         )
                     with gr.Column(elem_classes="rag-card rag-audio"):
                         gr.Markdown("<div class='rag-side-title'>음성</div>")
-                        audio = gr.Audio(label="", autoplay=True, interactive=False)
+                        audio = gr.Audio(
+                            label="",
+                            autoplay=True,
+                            interactive=False,
+                            streaming=False,
+                            elem_id="rag-audio",
+                        )
+
+            # 오디오 자동 재생을 위해 사용자 제스처 이후 재생 트리거를 연결한다.
+            gr.HTML(
+                """
+                <script>
+                (function() {
+                  let userInteracted = false;
+                  const markInteracted = () => { userInteracted = true; };
+                  window.addEventListener("click", markInteracted, { once: true });
+                  window.addEventListener("keydown", markInteracted, { once: true });
+
+                  function tryPlayOnce() {
+                    if (!userInteracted) return;
+                    const root = document.getElementById("rag-audio");
+                    if (!root) return;
+                    const audio = root.querySelector("audio");
+                    if (!audio) return;
+                    if (audio.paused && audio.src) {
+                      audio.play().catch(() => {});
+                    }
+                  }
+
+                  function scheduleRetries(times, delayMs) {
+                    let count = 0;
+                    const id = setInterval(() => {
+                      tryPlayOnce();
+                      count += 1;
+                      if (count >= times) clearInterval(id);
+                    }, delayMs);
+                  }
+
+                  function tryAttach() {
+                    const root = document.getElementById("rag-audio");
+                    if (!root) return;
+                    const audio = root.querySelector("audio");
+                    if (!audio) return;
+
+                    const tryPlay = () => tryPlayOnce();
+
+                    audio.addEventListener("loadeddata", tryPlay);
+                    audio.addEventListener("canplay", tryPlay);
+                    audio.addEventListener("loadedmetadata", tryPlay);
+                    audio.addEventListener("durationchange", tryPlay);
+
+                    // src가 바뀔 때마다 재생을 재시도한다.
+                    const srcObserver = new MutationObserver(() => {
+                      tryPlay();
+                      scheduleRetries(6, 250);
+                    });
+                    srcObserver.observe(audio, { attributes: true, attributeFilter: ["src"] });
+
+                    // 일정 주기로도 재시도 (Gradio 내부 DOM 교체 대응)
+                    if (!window._ragAutoplayTimer) {
+                      window._ragAutoplayTimer = setInterval(() => {
+                        tryPlayOnce();
+                      }, 500);
+                    }
+                  }
+
+                  const observer = new MutationObserver(() => {
+                    tryAttach();
+                  });
+                  observer.observe(document.body, { childList: true, subtree: true });
+                  tryAttach();
+
+                  const sendBtn = document.getElementById("send-btn");
+                  if (sendBtn) {
+                    sendBtn.addEventListener("click", () => {
+                      userInteracted = true;
+                      tryPlayOnce();
+                      scheduleRetries(8, 250);
+                    });
+                  }
+                })();
+                </script>
+                """
+            )
 
         # 버튼 클릭 -> 메시지 처리
         session_state = gr.State(value=uuid.uuid4().hex)

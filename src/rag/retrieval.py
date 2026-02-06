@@ -161,6 +161,8 @@ class QueryAnalysisAgent:
             Dict[str, str]: 필터 딕셔너리
         """
         filters: Dict[str, str] = {}
+        if not question:
+            return filters
 
         # 발주 기관/프로젝트명 등 메타데이터 필터를 정규식으로 추출한다.
         issuer_match = re.search(
