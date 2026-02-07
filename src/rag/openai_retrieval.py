@@ -43,7 +43,6 @@ class QueryAnalysis:
     Args:
         question_type: 질문 유형
         needs_multi_doc: 다문서 여부
-        metadata_filter: 필터 조건
         top_k: 검색 결과 수
         strategy: 검색 전략
         notes: 분석 메모
@@ -51,7 +50,6 @@ class QueryAnalysis:
 
     question_type: str
     needs_multi_doc: bool
-    metadata_filter: Dict[str, str]
     top_k: int
     strategy: str
     notes: str = ""
@@ -73,8 +71,6 @@ class QueryAnalysisAgent:
 
     def analyze(self, question: str, state: Optional[ConversationState] = None) -> QueryAnalysis:
         question_type = self._classify_question(question, state)
-        metadata_filter = self._extract_metadata_filters(question)
-
         if question_type == QUESTION_TYPE_MULTI:
             top_k = min(self.config.max_top_k, 8)
             strategy = self.config.rrf_strategy
@@ -91,17 +87,9 @@ class QueryAnalysisAgent:
             needs_multi_doc = False
             notes = "single-document request"
 
-        if needs_multi_doc:
-            metadata_filter = {}
-        if metadata_filter:
-            top_k = max(self.config.min_top_k, min(top_k, 6))
-            strategy = self.config.similarity_strategy
-            notes += "; metadata filter applied"
-
         return QueryAnalysis(
             question_type=question_type,
             needs_multi_doc=needs_multi_doc,
-            metadata_filter=metadata_filter,
             top_k=top_k,
             strategy=strategy,
             notes=notes,
@@ -120,36 +108,6 @@ class QueryAnalysisAgent:
             return QUESTION_TYPE_MULTI
         return QUESTION_TYPE_SINGLE
 
-    def _extract_metadata_filters(self, question: str) -> Dict[str, str]:
-        filters: Dict[str, str] = {}
-
-        issuer_match = re.search(
-            r"([가-힣A-Za-z0-9\\s]+?(공단|연구원|대학교|과학기술원|재단|청|부))",
-            question,
-        )
-        if issuer_match:
-            filters["issuer"] = issuer_match.group(1).strip()
-
-        project_match = re.search(r"([가-힣A-Za-z0-9\\s]+?)\\s*(사업|프로젝트|시스템)", question)
-        if project_match:
-            filters["project_name"] = project_match.group(1).strip()
-
-        file_match = re.search(
-            r"([가-힣A-Za-z0-9_\\-\\s\\(\\)\\[\\]]+?)\\.(hwp|pdf|docx|doc)",
-            question,
-            flags=re.IGNORECASE,
-        )
-        if file_match:
-            filters["filename"] = file_match.group(1).strip()
-        else:
-            name_match = re.search(r"([가-힣A-Za-z0-9_\\-\\s\\(\\)\\[\\]]+_[가-힣A-Za-z0-9_\\-\\s\\(\\)\\[\\]]+)", question)
-            if name_match:
-                base_name = name_match.group(1).strip()
-                base_name = re.sub(r"(을|를|은|는|이|가|와|과)$", "", base_name).strip()
-                if base_name:
-                    filters["filename"] = base_name
-
-        return filters
 
 
 # Retrieval utilities
@@ -233,7 +191,6 @@ class Retriever:
             chunks, scores = self.store.similarity_search(
                 query=plan.query,
                 top_k=plan.top_k,
-                metadata_filter=plan.metadata_filter,
             )
             # 세션 메모리에서 온 문서 ID 필터가 있으면 결과를 제한한다.
             chunks = self._apply_doc_id_filter(chunks, plan.doc_id_filter)
@@ -247,7 +204,6 @@ class Retriever:
         sim_chunks, _ = self.store.similarity_search(
             query=plan.query,
             top_k=max(plan.top_k, self.config.mmr_candidate_pool),
-            metadata_filter=plan.metadata_filter,
             fetch_k=self.config.mmr_candidate_pool,
         )
         mmr_chunks = self._retrieve_with_mmr(plan)
@@ -280,7 +236,6 @@ class Retriever:
             top_k=plan.top_k,
             fetch_k=self.config.mmr_candidate_pool,
             lambda_mult=self.config.mmr_lambda,
-            metadata_filter=plan.metadata_filter,
         )
 
     def _get_bm25(self, top_k: int) -> Optional[BM25Retriever]:

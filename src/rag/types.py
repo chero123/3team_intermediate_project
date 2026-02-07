@@ -61,7 +61,6 @@ class RetrievalPlan:
         query: 사용자 질문
         top_k: 검색 결과 수
         strategy: 검색 전략 키워드
-        metadata_filter: 메타데이터 필터
         doc_id_filter: 문서 ID 필터
         needs_multi_doc: 다문서 처리 여부
         notes: 분석 메모
@@ -73,8 +72,6 @@ class RetrievalPlan:
     top_k: int
     # 검색 전략 저장
     strategy: str
-    # 메타데이터 필터 저장
-    metadata_filter: Metadata
     # 다문서 처리 여부 저장
     needs_multi_doc: bool = False
     # 문서 ID 필터 저장

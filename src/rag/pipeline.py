@@ -7,6 +7,7 @@ from __future__ import annotations
 - analyze_query → retrieve → generate → rewrite
 """
 
+import os
 import uuid
 from typing import Optional, TypedDict
 
@@ -108,16 +109,25 @@ class RAGPipeline:
         sid = session_id or self._session_id
         # LangGraph는 상태 기반으로 분석→검색→생성 순서로 실행한다.
         result = self.graph.invoke({"question": question, "session_id": sid})
-        answer = result.get("rewritten") or result["answer"]
+        base_answer = result.get("rewritten") or result["answer"]
+        # 컨텍스트 청크에서 참고 문헌 목록을 만들어 후처리로 덧붙인다.
+        retrieval = result.get("retrieval")
+        reference_block = ""
+        if retrieval is not None:
+            reference_block = self._build_reference_block(retrieval.chunks)
+        if reference_block and "[참고 문헌]" not in base_answer:
+            answer = f"{base_answer}\n\n{reference_block}"
+        else:
+            answer = base_answer
         # 대화 히스토리를 갱신해 후속 질문의 문맥으로 활용한다.
         self.state.append("user", question)
-        self.state.append("assistant", answer)
+        self.state.append("assistant", base_answer)
         plan = result.get("plan")
         if plan is not None:
             self.memory.update_state(
                 sid,
                 last_question=question,
-                last_answer=answer,
+                last_answer=base_answer,
                 last_question_type=plan.question_type,
             )
         return answer
@@ -159,6 +169,35 @@ class RAGPipeline:
         builder.add_edge("rewrite", END)
         return builder.compile()
 
+    @staticmethod
+    def _build_reference_block(chunks: list) -> str:
+        """
+        청크 메타데이터에서 파일명을 수집해 참고 문헌 블록을 만든다.
+        확장자는 제거하고 중복은 제거한다.
+        """
+        names: list[str] = []
+        seen: set[str] = set()
+        for chunk in chunks:
+            meta = chunk.metadata or {}
+            name = meta.get("filename") or meta.get("source_filename")
+            if not name:
+                source_path = meta.get("source_path")
+                if source_path:
+                    name = os.path.basename(str(source_path))
+            if not name:
+                name = meta.get("doc_id")
+            if not name:
+                continue
+            base = os.path.splitext(str(name))[0].strip()
+            if not base or base in seen:
+                continue
+            seen.add(base)
+            names.append(base)
+        if not names:
+            return ""
+        lines = "\n".join(f"- {name}" for name in names)
+        return f"[참고 문헌]\n{lines}"
+
     def _route_by_plan(self, state: RAGState) -> dict:
         """
         질문 유형에 따라 검색 노드를 분기한다.
@@ -190,14 +229,10 @@ class RAGPipeline:
             query=state["question"],
             top_k=analysis.top_k,
             strategy=analysis.strategy,
-            metadata_filter=analysis.metadata_filter,
             question_type=analysis.question_type,
             needs_multi_doc=analysis.needs_multi_doc,
             notes=analysis.notes,
         )
-        # 질문에 기관명/사업명/파일명이 명시되면 새 문맥으로 강제 리셋한다.
-        if analysis.metadata_filter:
-            self.memory.clear_session_docs(state["session_id"])
         last_question_type = self.memory.get_last_question_type(state["session_id"])
         # 세션 메모리 기반의 followup 판정(명시 키워드 + 짧은 질문 + 유사도) 혼합 규칙
         last_question = self.memory.get_last_question(state["session_id"])
@@ -213,7 +248,6 @@ class RAGPipeline:
                     plan.question_type = "multi"
                     plan.needs_multi_doc = True
                     plan.strategy = self.config.rrf_strategy
-                    plan.metadata_filter = {}
                     plan.notes = f"{plan.notes}; followup via session memory (force multi)"
                     doc_ids = self.memory.load_doc_ids(state["session_id"])
                     if doc_ids:
@@ -240,7 +274,6 @@ class RAGPipeline:
                 else:
                     plan.needs_multi_doc = True
                     plan.strategy = self.config.rrf_strategy
-                plan.metadata_filter = {}
                 plan.notes = f"{plan.notes}; followup via session memory"
                 # SQLite 세션 메모리에서 직전 검색 문서 ID를 불러와 후속 질문 범위를 제한한다.
                 doc_ids = self.memory.load_doc_ids(state["session_id"])

@@ -70,6 +70,29 @@ def _sanitize_answer(text: str) -> str:
     return cleaned
 
 
+def _split_reference_block(text: str) -> tuple[str, str]:
+    """
+    본문과 참고 문헌 블록을 분리한다.
+    """
+    lines = text.splitlines()
+    body_lines: list[str] = []
+    ref_lines: list[str] = []
+    in_ref = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("[참고 문헌]") or stripped.startswith("참고문헌"):
+            in_ref = True
+            ref_lines.append(stripped)
+            continue
+        if in_ref:
+            ref_lines.append(line)
+            continue
+        body_lines.append(line)
+    body = "\n".join(body_lines).strip()
+    ref = "\n".join(ref_lines).strip()
+    return body, ref
+
+
 def _split_sentences(text: str) -> list[str]:
     # 문장 경계를 기준으로 자른 뒤 마침표를 유지한다.
     # 숫자 사이의 소수점(예: 5.5)은 문장 분리 대상에서 제외한다.
@@ -197,8 +220,8 @@ def _run_once(pipeline: RAGPipeline, question: str, use_tts: bool, device: str, 
     """
     # 1) RAG 질의 -> 원본 답변 생성
     answer = pipeline.ask(question)
-    answer = _sanitize_answer(answer)
-    sentences = [s for s in (s.strip() for s in _split_sentences(answer)) if s]
+    body_text, ref_block = _split_reference_block(answer)
+    sentences = [s for s in (s.strip() for s in _split_sentences(body_text)) if s]
     if not sentences:
         sentences = ["답변을 생성할 수 없습니다."]
 
@@ -222,7 +245,10 @@ def _run_once(pipeline: RAGPipeline, question: str, use_tts: bool, device: str, 
         # 문장 출력 직후에 음성을 생성해 실시간성을 유지한다.
         if use_tts:
             # 문장 -> 더 짧은 조각으로 분할해 안정적으로 합성한다.
-            tts_segments = _split_sentence_for_tts(sentence)
+            tts_sentence = _sanitize_answer(sentence)
+            if not tts_sentence:
+                continue
+            tts_segments = _split_sentence_for_tts(tts_sentence)
             sentence_chunks = []
             for segment in tts_segments:
                 # ONNX TTS를 호출해 조각 단위 오디오를 얻는다.
@@ -268,6 +294,9 @@ def _run_once(pipeline: RAGPipeline, question: str, use_tts: bool, device: str, 
         audio = np.concatenate(audio_chunks, axis=0)
         audio = _prepare_audio_for_playback(audio, sr)
         sf.write(_TTS_OUTPUT_PATH, audio, sr, subtype="PCM_16")
+
+    if ref_block:
+        print(ref_block)
 
 
 def main() -> None:

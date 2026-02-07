@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 """
-문서 로딩/파싱/청킹 모듈
+이 파일은 RAG(Retrieval-Augmented Generation) 파이프라인에서
+문서 -> 텍스트 -> 청크로 변환하는 핵심 전처리 모듈이다.
 
-섹션 구성:
-- 메타데이터 로딩/정규화
-- 파서(HWP/PDF/DOCX)
-- 문서 로딩
-- 청킹
+역할 요약:
+1. 다양한 문서 형식(HWP, PDF, DOCX)을 텍스트로 파싱
+2. PDF 내 이미지 기반 표/그래프를 VLM(Qwen3-VL)로 추가 추출
+3. 메타데이터(CSV)를 문서에 병합
+4. LLM 검색에 적합하도록 텍스트를 청크로 분할
+
+전체 흐름:
+"파일" -> "의미 있는 텍스트 덩어리" -> "벡터화 가능한 최소 단위"
 """
 
 import csv
@@ -77,10 +81,12 @@ def safe_filename(original_name: str, suffix: str = "_parsed.txt", max_bytes: in
     Returns:
         str: 안전하게 변환된 파일명
     """
+    # 유니코드 정규화 (한글 자모 분리 문제 방지)
     name = unicodedata.normalize("NFC", original_name)
     base = re.sub(r"\.(hwp|pdf|docx)$", "", name, flags=re.IGNORECASE)
     base = re.sub(r"[\/\\\:\*\?\"\<\>\|\n\r\t]+", " ", base)
     base = re.sub(r"\s+", " ", base).strip()
+    # 해시를 붙여 파일명 충돌 방지
     h = hashlib.sha1(name.encode("utf-8")).hexdigest()[:10]
     tail = f"__{h}{suffix}"
     budget = max_bytes - len(tail.encode("utf-8"))
@@ -115,6 +121,158 @@ def clean_text(text: str) -> str:
 
 
 # Qwen3-VL helpers
+def parse_hwp_all(path: str) -> str:
+    """
+    HWP 파일에서 BodyText를 파싱해 텍스트를 추출한다.
+
+    Args:
+        path: HWP 파일 경로
+
+    Returns:
+        str: 추출된 텍스트
+    """
+    if not os.path.exists(path):
+        return ""
+    try:
+        # HWP는 OLE 컨테이너이므로 olefile로 스트림을 읽는다.
+        f = olefile.OleFileIO(path)
+        header = f.openstream("FileHeader").read()
+        # FileHeader의 압축 플래그 확인
+        is_compressed = header[36] & 1
+        texts: List[str] = []
+        for entry in f.listdir():
+            if entry[0] != "BodyText":
+                continue
+            data = f.openstream(entry).read()
+            if is_compressed:
+                try:
+                    # HWP BodyText는 zlib raw deflate 형식일 수 있다.
+                    data = zlib.decompress(data, -15)
+                except zlib.error:
+                    pass
+            i = 0
+            while i < len(data):
+                if i + 4 > len(data):
+                    break
+                # HWP 레코드 헤더 파싱 (type/length)
+                rec_header = struct.unpack_from("<I", data, i)[0]
+                rec_type = rec_header & 0x3FF
+                rec_len = (rec_header >> 20) & 0xFFF
+                if rec_len == 0xFFF:
+                    if i + 8 > len(data):
+                        break
+                    rec_len = struct.unpack_from("<I", data, i + 4)[0]
+                    i += 8
+                else:
+                    i += 4
+                if i + rec_len > len(data):
+                    break
+                # HWPTAG_PARA_TEXT(67)만 추출 대상
+                if rec_type == 67 and rec_len > 0:
+                    text_data = data[i : i + rec_len]
+                    try:
+                        # HWP 텍스트는 UTF-16LE로 저장된다.
+                        text = text_data.decode("utf-16le", errors="ignore")
+                        cleaned_chars = []
+                        for char in text:
+                            code = ord(char)
+                            if code >= 32 or char in "\n\r\t":
+                                cleaned_chars.append(char)
+                            elif code in [13, 10]:
+                                cleaned_chars.append("\n")
+                        text = "".join(cleaned_chars).strip()
+                        if text:
+                            texts.append(text)
+                    except UnicodeDecodeError:
+                        pass
+                i += rec_len
+        f.close()
+        if texts:
+            return clean_text("\n".join(texts))
+        return ""
+    except Exception:
+        return ""
+
+# PDF parsing
+def parse_pdf_with_pdfplumber(path: str) -> str:
+    """
+    pdfplumber로 PDF 텍스트를 추출한다.
+
+    Args:
+        path: PDF 경로
+
+    Returns:
+        str: 추출된 텍스트
+    """
+    if pdfplumber is None:
+        return ""
+    try:
+        # pdfplumber는 텍스트 품질이 좋은 대신 속도가 느릴 수 있다.
+        with pdfplumber.open(path) as pdf:
+            text = " ".join([p.extract_text() for p in pdf.pages if p.extract_text()])
+        return clean_text(text) if text else ""
+    except Exception:
+        return ""
+
+
+def parse_pdf_with_fitz(path: str) -> str:
+    """
+    PyMuPDF(fitz)로 PDF 텍스트를 추출한다.
+
+    Args:
+        path: PDF 경로
+
+    Returns:
+        str: 추출된 텍스트
+    """
+    if fitz is None:
+        return ""
+    try:
+        # PyMuPDF는 속도가 빠르지만 텍스트 품질은 문서에 따라 달라진다.
+        doc = fitz.open(path)
+        results = []
+        for page in doc:
+            page_text = page.get_text()
+            if page_text.strip():
+                results.append(page_text.strip())
+        doc.close()
+        return clean_text("\n\n".join(results)) if results else ""
+    except Exception:
+        return ""
+
+def extract_text_from_pdf(path: str, config: Optional[RAGConfig] = None) -> str:
+    """
+    PDF 텍스트를 추출한다 (parser 설정에 따라 선택).
+
+    Args:
+        path: PDF 경로
+
+    Returns:
+        str: 추출된 텍스트
+    """
+    config = config or RAGConfig()
+    base_text, image_text = extract_text_from_pdf_with_vlm(path, config)
+    if base_text or image_text:
+        return clean_text("\n\n".join([t for t in [base_text, image_text] if t]))
+    return ""
+
+def extract_text_from_docx(path: str) -> str:
+    """
+    docx 파일에서 텍스트를 추출하는 함수
+
+    Args:
+        path: docs 파일 경로
+
+    Returns:
+        str: 추출된 텍스트
+    """
+    # docx 문서를 로드
+    doc = DocxDocument(path)
+    # 문단 텍스트를 결합
+    return clean_text("\n".join(p.text for p in doc.paragraphs if p.text))
+
+
+# Document loading
 def _get_qwen3_vl(config: RAGConfig):
     """
     Qwen3-VL 모델과 프로세서를 지연 로딩한다.
@@ -122,7 +280,7 @@ def _get_qwen3_vl(config: RAGConfig):
     Returns:
         tuple: (processor, model)
     """
-    # 모델/프로세서는 무겁기 때문에 프로세스 전역 캐시로 재사용한다.
+    # 모델/프로세서는 무겁기 때문에 프로세스 전역 캐시로 재사용하여 요청마다 로드하지 않는다.
     if "processor" in _QWEN3_VL_CACHE and "llm" in _QWEN3_VL_CACHE:
         return _QWEN3_VL_CACHE["processor"], _QWEN3_VL_CACHE["llm"]
 
@@ -146,8 +304,10 @@ def _get_qwen3_vl(config: RAGConfig):
         gpu_memory_utilization=config.qwen3_vl_gpu_memory_utilization,
         max_model_len=config.qwen3_vl_max_model_len,
         tensor_parallel_size=max(1, torch.cuda.device_count()),
+        # 운영 및 속도 최적화 옵션
         enforce_eager=False,
         seed=0,
+        # 한 프롬프트당 멀티모달 입력 제한 (영상은 없으므로 0)
         limit_mm_per_prompt={"image": 1, "video": 0},
     )
     _QWEN3_VL_CACHE["processor"] = processor
@@ -263,9 +423,43 @@ def _is_useful_vlm_text(text: str) -> bool:
     return True
 
 
+def _is_meaningful_image(image: Image.Image, config: RAGConfig) -> bool:
+    """
+    단순 로고/빈 이미지 등을 빠르게 걸러낸다.
+    """
+    # 너무 작은 이미지는 정보가 거의 없으므로 제외한다.
+    width, height = image.size
+    if width * height < config.qwen3_vl_min_image_pixels:
+        return False
+    # 그레이스케일로 변환해 통계량을 계산한다.
+    gray = image.convert("L")
+    # 이미지 분산 계산
+    stats = ImageStat.Stat(gray)
+    # 분산은 픽셀 밝기 값이 얼마나 퍼져 있는지 나타낸다.
+    variance = stats.var[0] if stats.var else 0.0
+    # 분산이 낮으면 단색/로고 가능성이 높다.
+    if variance < config.qwen3_vl_min_variance:
+        return False
+    # 거의 흰색(또는 거의 검은색)인 이미지인지 비율로 판별한다.
+    hist = gray.histogram() # 255 픽셀 개수 분포
+    total = max(1, sum(hist))
+    nonwhite = sum(hist[:250]) / total
+    # 비백색 픽셀 비율이 너무 낮으면 백지 이미지로 판단한다.
+    if nonwhite < config.qwen3_vl_min_nonwhite_ratio:
+        return False
+    # 엣지 에너지가 낮으면 텍스트/도표 정보가 부족하다고 판단한다.
+    edges = gray.filter(ImageFilter.FIND_EDGES) # 엣지(경계선) 검출
+    edge_hist = edges.histogram()
+    edge_energy = sum(i * count for i, count in enumerate(edge_hist)) / (total * 255.0)
+    if edge_energy < config.qwen3_vl_min_edge_energy:
+        return False
+    return True
+
+
+# Metadata loading/normalization
 def _extract_pdf_images_with_vlm(path: str, config: RAGConfig) -> str:
     """
-    PDF 페이지 이미지를 렌더링하고 Qwen3-VL로 텍스트를 추출한다.
+    fitz로 PDF 페이지 이미지를 렌더링하고 Qwen3-VL로 텍스트를 추출한다.
 
     Args:
         path: PDF 경로
@@ -287,10 +481,11 @@ def _extract_pdf_images_with_vlm(path: str, config: RAGConfig) -> str:
         # 동일 이미지 중복 처리 방지를 위한 해시 캐시
         seen_hashes: set[str] = set()
         for page_index, page in enumerate(tqdm(doc, desc="[VLM] pages", unit="page")):
-            images = page.get_images(full=True)
+            images = page.get_images(full=True) # -> [(xref, smth, smth, ...), ...]
             if not images:
                 continue
             for img_index, img in enumerate(images):
+                # 이미지 데이터 추출에 필요한 키는 첫 번째 요소(xref)뿐이다.
                 xref = img[0]
                 # PDF 내부 이미지 바이너리를 추출한다.
                 base = doc.extract_image(xref)
@@ -332,37 +527,45 @@ def _extract_pdf_images_with_vlm(path: str, config: RAGConfig) -> str:
         return ""
 
 
-def _is_meaningful_image(image: Image.Image, config: RAGConfig) -> bool:
+def extract_text_from_pdf_with_vlm(path: str, config: RAGConfig) -> tuple[str, str]:
     """
-    단순 로고/빈 이미지 등을 빠르게 걸러낸다.
+    PDF 텍스트와 VLM 이미지 텍스트를 함께 추출한다.
+
+    Args:
+        path: PDF 경로
+
+    Returns:
+        tuple[str, str]: (본문 텍스트, 이미지 텍스트)
     """
-    # 너무 작은 이미지는 정보가 거의 없으므로 제외한다.
-    width, height = image.size
-    if width * height < config.qwen3_vl_min_image_pixels:
-        return False
-    # 그레이스케일로 변환해 통계량을 계산한다.
-    gray = image.convert("L")
-    stats = ImageStat.Stat(gray)
-    variance = stats.var[0] if stats.var else 0.0
-    # 분산이 낮으면 단색/로고 가능성이 높다.
-    if variance < config.qwen3_vl_min_variance:
-        return False
-    # 거의 흰색(또는 거의 검은색)인 이미지인지 비율로 판별한다.
-    hist = gray.histogram()
-    total = max(1, sum(hist))
-    nonwhite = sum(hist[:250]) / total
-    if nonwhite < config.qwen3_vl_min_nonwhite_ratio:
-        return False
-    # 엣지 에너지가 낮으면 텍스트/도표 정보가 부족하다고 판단한다.
-    edges = gray.filter(ImageFilter.FIND_EDGES)
-    edge_hist = edges.histogram()
-    edge_energy = sum(i * count for i, count in enumerate(edge_hist)) / (total * 255.0)
-    if edge_energy < config.qwen3_vl_min_edge_energy:
-        return False
-    return True
+    # 설정된 파서를 먼저 사용한다.
+    if PDF_PARSER == "pdfplumber":
+        print(f"[PDF] parser=pdfplumber path={path}")
+        text = parse_pdf_with_pdfplumber(path)
+        base_text = text or ""
+    elif PDF_PARSER == "fitz":
+        print(f"[PDF] parser=fitz path={path}")
+        text = parse_pdf_with_fitz(path)
+        base_text = text or ""
+    else:
+        print(f"[PDF] parser=none path={path}")
+        base_text = ""
+
+    # 텍스트 파서 결과가 비어 있으면 pypdf로 fallback한다.
+    try:
+        if not base_text:
+            print(f"[PDF] fallback=pypdf path={path}")
+            reader = PdfReader(path)
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
+            base_text = clean_text(text)
+    except Exception:
+        base_text = base_text or ""
+
+    # PDF 내 이미지가 있을 수 있으므로 Qwen3-VL로 이미지 텍스트를 한 번만 추출한다.
+    image_text = _extract_pdf_images_with_vlm(path, config)
+    return base_text, image_text
 
 
-# Metadata loading/normalization
+# DOCX parsing
 def load_metadata_csv(csv_path: str) -> Dict[str, Metadata]:
     """
     CSV 메타데이터를 파일명 기준으로 로드하는 함수
@@ -418,212 +621,6 @@ def normalize_metadata(row: Metadata) -> Metadata:
     }
 
 # HWP parsing
-def parse_hwp_all(path: str) -> str:
-    """
-    HWP 파일에서 BodyText를 파싱해 텍스트를 추출한다.
-
-    Args:
-        path: HWP 파일 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    if not os.path.exists(path):
-        return ""
-    try:
-        # HWP는 OLE 컨테이너이므로 olefile로 스트림을 읽는다.
-        f = olefile.OleFileIO(path)
-        header = f.openstream("FileHeader").read()
-        # FileHeader의 압축 플래그 확인
-        is_compressed = header[36] & 1
-        texts: List[str] = []
-        for entry in f.listdir():
-            if entry[0] != "BodyText":
-                continue
-            data = f.openstream(entry).read()
-            if is_compressed:
-                try:
-                    # HWP BodyText는 zlib raw deflate 형식일 수 있다.
-                    data = zlib.decompress(data, -15)
-                except zlib.error:
-                    pass
-            i = 0
-            while i < len(data):
-                if i + 4 > len(data):
-                    break
-                # HWP 레코드 헤더 파싱 (type/length)
-                rec_header = struct.unpack_from("<I", data, i)[0]
-                rec_type = rec_header & 0x3FF
-                rec_len = (rec_header >> 20) & 0xFFF
-                if rec_len == 0xFFF:
-                    if i + 8 > len(data):
-                        break
-                    rec_len = struct.unpack_from("<I", data, i + 4)[0]
-                    i += 8
-                else:
-                    i += 4
-                if i + rec_len > len(data):
-                    break
-                # HWPTAG_PARA_TEXT(67)만 추출 대상
-                if rec_type == 67 and rec_len > 0:
-                    text_data = data[i : i + rec_len]
-                    try:
-                        # HWP 텍스트는 UTF-16LE로 저장된다.
-                        text = text_data.decode("utf-16le", errors="ignore")
-                        cleaned_chars = []
-                        for char in text:
-                            code = ord(char)
-                            if code >= 32 or char in "\n\r\t":
-                                cleaned_chars.append(char)
-                            elif code in [13, 10]:
-                                cleaned_chars.append("\n")
-                        text = "".join(cleaned_chars).strip()
-                        if text:
-                            texts.append(text)
-                    except UnicodeDecodeError:
-                        pass
-                i += rec_len
-        f.close()
-        if texts:
-            return clean_text("\n".join(texts))
-        return ""
-    except Exception:
-        return ""
-
-
-def extract_text_from_hwp(path: str) -> str:
-    """
-    HWP 텍스트를 추출한다.
-
-    Args:
-        path: HWP 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    return parse_hwp_all(path)
-
-
-# PDF parsing
-def parse_pdf_with_pdfplumber(path: str) -> str:
-    """
-    pdfplumber로 PDF 텍스트를 추출한다.
-
-    Args:
-        path: PDF 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    if pdfplumber is None:
-        return ""
-    try:
-        # pdfplumber는 텍스트 품질이 좋은 대신 속도가 느릴 수 있다.
-        with pdfplumber.open(path) as pdf:
-            text = " ".join([p.extract_text() for p in pdf.pages if p.extract_text()])
-        return clean_text(text) if text else ""
-    except Exception:
-        return ""
-
-
-def parse_pdf_with_fitz(path: str) -> str:
-    """
-    PyMuPDF(fitz)로 PDF 텍스트를 추출한다.
-
-    Args:
-        path: PDF 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    if fitz is None:
-        return ""
-    try:
-        # PyMuPDF는 속도가 빠르지만 텍스트 품질은 문서에 따라 달라진다.
-        doc = fitz.open(path)
-        results = []
-        for page in doc:
-            page_text = page.get_text()
-            if page_text.strip():
-                results.append(page_text.strip())
-        doc.close()
-        return clean_text("\n\n".join(results)) if results else ""
-    except Exception:
-        return ""
-
-def extract_text_from_pdf(path: str, config: Optional[RAGConfig] = None) -> str:
-    """
-    PDF 텍스트를 추출한다 (parser 설정에 따라 선택).
-
-    Args:
-        path: PDF 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    config = config or RAGConfig()
-    base_text, image_text = extract_text_from_pdf_with_vlm(path, config)
-    if base_text or image_text:
-        return clean_text("\n\n".join([t for t in [base_text, image_text] if t]))
-    return ""
-
-
-def extract_text_from_pdf_with_vlm(path: str, config: RAGConfig) -> tuple[str, str]:
-    """
-    PDF 텍스트와 VLM 이미지 텍스트를 함께 추출한다.
-
-    Args:
-        path: PDF 경로
-
-    Returns:
-        tuple[str, str]: (본문 텍스트, 이미지 텍스트)
-    """
-    # 설정된 파서를 먼저 사용한다.
-    if PDF_PARSER == "pdfplumber":
-        print(f"[PDF] parser=pdfplumber path={path}")
-        text = parse_pdf_with_pdfplumber(path)
-        base_text = text or ""
-    elif PDF_PARSER == "fitz":
-        print(f"[PDF] parser=fitz path={path}")
-        text = parse_pdf_with_fitz(path)
-        base_text = text or ""
-    else:
-        print(f"[PDF] parser=none path={path}")
-        base_text = ""
-
-    # 텍스트 파서 결과가 비어 있으면 pypdf로 fallback한다.
-    try:
-        if not base_text:
-            print(f"[PDF] fallback=pypdf path={path}")
-            reader = PdfReader(path)
-            text = "\n".join((page.extract_text() or "") for page in reader.pages)
-            base_text = clean_text(text)
-    except Exception:
-        base_text = base_text or ""
-
-    # PDF 내 이미지가 있을 수 있으므로 Qwen3-VL로 이미지 텍스트를 한 번만 추출한다.
-    image_text = _extract_pdf_images_with_vlm(path, config)
-    return base_text, image_text
-
-
-# DOCX parsing
-def extract_text_from_docx(path: str) -> str:
-    """
-    docx 파일에서 텍스트를 추출하는 함수
-
-    Args:
-        path: docs 파일 경로
-
-    Returns:
-        str: 추출된 텍스트
-    """
-    # docx 문서를 로드
-    doc = DocxDocument(path)
-    # 문단 텍스트를 결합
-    return clean_text("\n".join(p.text for p in doc.paragraphs if p.text))
-
-
-# Document loading
 def load_documents(
     data_dir: str,
     metadata_csv: str | None = None,
@@ -682,7 +679,7 @@ def load_documents(
                         metadata["vlm_image_text_present"] = False
                 # HWP라면 HWP를 파싱
                 elif ext == ".hwp":
-                    text = extract_text_from_hwp(path)
+                    text = parse_hwp_all(path)
                     print(f"[HWP] text_len={len(text)} path={path}")
                 # docx라면 docx를 파싱
                 elif ext == ".docx":

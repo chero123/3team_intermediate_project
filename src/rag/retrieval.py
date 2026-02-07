@@ -45,7 +45,6 @@ class QueryAnalysis:
     Args:
         question_type: 질문 유형
         needs_multi_doc: 다문서 여부
-        metadata_filter: 필터 조건
         top_k: 검색 결과 수
         strategy: 검색 전략
         notes: 분석 메모
@@ -53,7 +52,6 @@ class QueryAnalysis:
 
     question_type: str
     needs_multi_doc: bool
-    metadata_filter: Dict[str, str]
     top_k: int
     strategy: str
     notes: str = ""
@@ -86,9 +84,8 @@ class QueryAnalysisAgent:
         Returns:
             QueryAnalysis: 분석 결과
         """
-        # 질문 타입과 메타데이터 필터를 먼저 추정한다.
+        # 질문 타입을 먼저 추정한다.
         question_type = self._classify_question(question, state)
-        metadata_filter = self._extract_metadata_filters(question)
 
         if question_type == QUESTION_TYPE_MULTI:
             top_k = min(self.config.max_top_k, 8)
@@ -106,19 +103,9 @@ class QueryAnalysisAgent:
             needs_multi_doc = False
             notes = "single-document request"
 
-        # 다문서 전략이면 메타데이터 필터를 끄고 회수 폭을 넓힌다.
-        if needs_multi_doc:
-            metadata_filter = {}
-        # 메타데이터 필터가 있으면 후보 수를 줄이고 유사도 검색으로 단순화한다.
-        if metadata_filter:
-            top_k = max(self.config.min_top_k, min(top_k, 6))
-            strategy = self.config.similarity_strategy
-            notes += "; metadata filter applied"
-
         return QueryAnalysis(
             question_type=question_type,
             needs_multi_doc=needs_multi_doc,
-            metadata_filter=metadata_filter,
             top_k=top_k,
             strategy=strategy,
             notes=notes,
@@ -150,51 +137,6 @@ class QueryAnalysisAgent:
             return QUESTION_TYPE_MULTI
         return QUESTION_TYPE_SINGLE
 
-    def _extract_metadata_filters(self, question: str) -> Dict[str, str]:
-        """
-        _extract_metadata_filters는 질문에서 메타데이터 조건 추출
-
-        Args:
-            question: 사용자 질문
-
-        Returns:
-            Dict[str, str]: 필터 딕셔너리
-        """
-        filters: Dict[str, str] = {}
-        if not question:
-            return filters
-
-        # 발주 기관/프로젝트명 등 메타데이터 필터를 정규식으로 추출한다.
-        issuer_match = re.search(
-            r"([가-힣A-Za-z0-9\s]+?(공단|연구원|대학교|과학기술원|재단|청|부))",
-            question,
-        )
-        if issuer_match:
-            filters["issuer"] = issuer_match.group(1).strip()
-
-        project_match = re.search(r"([가-힣A-Za-z0-9\s]+?)\s*(사업|프로젝트|시스템)", question)
-        if project_match:
-            filters["project_name"] = project_match.group(1).strip()
-
-        # 파일명이 질문에 있으면 확장자를 제거한 base 이름으로 필터링한다.
-        file_match = re.search(
-            r"([가-힣A-Za-z0-9_\-\s\(\)\[\]]+?)\.(hwp|pdf|docx|doc)",
-            question,
-            flags=re.IGNORECASE,
-        )
-        if file_match:
-            filters["filename"] = file_match.group(1).strip()
-        else:
-            # 확장자가 생략된 경우를 위해, 밑줄을 포함한 파일명 패턴을 보조적으로 추출한다.
-            name_match = re.search(r"([가-힣A-Za-z0-9_\-\s\(\)\[\]]+_[가-힣A-Za-z0-9_\-\s\(\)\[\]]+)", question)
-            if name_match:
-                base_name = name_match.group(1).strip()
-                # 조사 제거(예: "…를", "…은" 등)
-                base_name = re.sub(r"(을|를|은|는|이|가|와|과)$", "", base_name).strip()
-                if base_name:
-                    filters["filename"] = base_name
-
-        return filters
 
 
 
@@ -350,7 +292,6 @@ class Retriever:
             chunks, scores = self.store.similarity_search(
                 query=plan.query,
                 top_k=plan.top_k,
-                metadata_filter=plan.metadata_filter,
             )
             # 세션 메모리에서 온 문서 ID 필터가 있으면 결과를 제한한다.
             chunks = self._apply_doc_id_filter(chunks, plan.doc_id_filter)
@@ -375,7 +316,6 @@ class Retriever:
         sim_chunks, _ = self.store.similarity_search(
             query=plan.query,
             top_k=max(plan.top_k, self.config.mmr_candidate_pool),
-            metadata_filter=plan.metadata_filter,
             fetch_k=self.config.mmr_candidate_pool,
         )
 
@@ -420,7 +360,6 @@ class Retriever:
             top_k=plan.top_k,
             fetch_k=self.config.mmr_candidate_pool,
             lambda_mult=self.config.mmr_lambda,
-            metadata_filter=plan.metadata_filter,
         )
 
     def _get_bm25(self, top_k: int) -> Optional[BM25Retriever]:

@@ -60,28 +60,6 @@ def _doc_to_chunk(doc: LCDocument) -> Chunk:
     # 검색 결과를 파이프라인에서 쓰는 Chunk 타입으로 변환한
     return Chunk(id=chunk_id, text=doc.page_content, metadata=metadata)
 
-def _normalize_filename_base(value: str) -> str:
-    """
-    파일명 비교를 위해 확장자를 제거하고 공백을 정리한다.
-    """
-    base = os.path.splitext(value)[0]
-    return " ".join(base.strip().split())
-
-def _metadata_matches(chunk: Chunk, metadata_filter: dict) -> bool:
-    """
-    메타데이터 필터가 일치하는지 확인한다.
-    """
-    for key, expected in metadata_filter.items():
-        actual = chunk.metadata.get(key, "")
-        if key == "filename":
-            if _normalize_filename_base(str(actual)) != _normalize_filename_base(str(expected)):
-                return False
-        else:
-            if str(actual) != str(expected):
-                return False
-    return True
-
-
 class FaissVectorStore:
     """
     FAISS 인덱스를 래핑
@@ -132,14 +110,13 @@ class FaissVectorStore:
             allow_dangerous_deserialization=True,
         )
 
-    def similarity_search(self, query: str, top_k: int, metadata_filter: Optional[dict] = None, fetch_k: Optional[int] = None):
+    def similarity_search(self, query: str, top_k: int, fetch_k: Optional[int] = None):
         """
         similarity_search는 유사도 검색을 수행
 
         Args:
             query: 검색 쿼리
             top_k: 반환할 결과 수
-            metadata_filter: 메타데이터 필터
             fetch_k: 필터링 전 후보 수
 
         Returns:
@@ -153,19 +130,15 @@ class FaissVectorStore:
         # LangChain이 반환하는 (Document, score) 쌍을 받아 후처리한다.
         results = self.store.similarity_search_with_score(query, k=fetch)
         filtered = []
-        # 메타데이터 필터가 있으면 사후 필터링으로 제거한다.
-        # 예: issuer="한국생산기술연구원", project_name="2세대 전자조달시스템"
+        # 검색 결과를 Chunk로 변환한다.
         for doc, score in results:
             chunk = _doc_to_chunk(doc)
-            if metadata_filter:
-                if not _metadata_matches(chunk, metadata_filter):
-                    continue
             filtered.append((chunk, float(score)))
         # 최종 top_k만 반환한다.
         selected = filtered[:top_k]
         return [c for c, _ in selected], [s for _, s in selected]
 
-    def mmr_search(self, query: str, top_k: int, fetch_k: int, lambda_mult: float, metadata_filter: Optional[dict] = None):
+    def mmr_search(self, query: str, top_k: int, fetch_k: int, lambda_mult: float):
         """
         mmr_search는 MMR 검색을 수행
 
@@ -174,7 +147,6 @@ class FaissVectorStore:
             top_k: 반환할 결과 수
             fetch_k: 후보 풀 크기
             lambda_mult: MMR 가중치
-            metadata_filter: 메타데이터 필터
 
         Returns:
             List[Chunk]: 청크 리스트
@@ -191,9 +163,6 @@ class FaissVectorStore:
         )
         # 검색 결과를 Chunk로 변환한다.
         chunks = [_doc_to_chunk(doc) for doc in docs]
-        # MMR 결과에도 동일한 메타데이터 필터를 적용한다.
-        if metadata_filter:
-            chunks = [c for c in chunks if _metadata_matches(c, metadata_filter)]
         # 최종 top_k로 자른다.
         return chunks[:top_k]
 
