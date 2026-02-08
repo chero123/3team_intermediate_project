@@ -5,10 +5,13 @@ from dotenv import load_dotenv
 
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_classic.retrievers.ensemble import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.documents import Document              # 추가
 
 # ==========================================
 # 0. 환경 설정 및 초기화
@@ -27,7 +30,7 @@ SELECTED_MODEL = "gpt-5-mini"
 print(f"시스템 초기화 중... (Model: {SELECTED_MODEL})")
 
 # ==========================================
-# 1. 리트리버(Retriever) 설정
+# 1. 하이브리드 리트리버 설정
 # ==========================================
 embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
@@ -35,15 +38,47 @@ if not os.path.exists(DB_PATH):
     print(f"오류: DB 경로({DB_PATH})가 존재하지 않습니다.")
     sys.exit()
 
+# [1] Dense Retriever (Chroma)
 vectorstore = Chroma(
     persist_directory=DB_PATH,
     embedding_function=embeddings,
     collection_name="bid_rfp_collection"
 )
 
-retriever = vectorstore.as_retriever(
+dense_retriever = vectorstore.as_retriever(
     search_type="mmr", 
-    search_kwargs={"k": 4, "fetch_k": 20, "lambda_mult": 0.6}
+    search_kwargs={"k": 5, "fetch_k": 20} # 하이브리드를 위해 k값 약간 조정
+)
+
+# [2] Sparse Retriever (BM25) 
+print("BM25 인덱스 생성 중... (데이터 로드)")
+try:
+    # DB에 저장된 모든 문서를 가져와서 BM25 인덱스를 만듭니다.
+    raw_docs = vectorstore.get() 
+    docs = []
+    for i in range(len(raw_docs['ids'])):
+        if raw_docs['documents'][i]: 
+            docs.append(Document(
+                page_content=raw_docs['documents'][i],
+                metadata=raw_docs['metadatas'][i] if raw_docs['metadatas'] else {}
+            ))
+    
+    if not docs:
+        print("오류: DB에 문서가 비어 있습니다.")
+        sys.exit()
+        
+    sparse_retriever = BM25Retriever.from_documents(docs)
+    sparse_retriever.k = 5  # 키워드 매칭 문서 5개
+    print("BM25 인덱스 생성 완료")
+
+except Exception as e:
+    print(f"BM25 초기화 실패: {e}")
+    sys.exit()
+
+# [3] Ensemble Retriever (Hybrid) - 결합
+ensemble_retriever = EnsembleRetriever(
+    retrievers=[dense_retriever, sparse_retriever],
+    weights=[0.6, 0.4]  # Dense(의미) 60%, Sparse(키워드) 40% 비중
 )
 
 # ==========================================
@@ -92,7 +127,6 @@ qa_prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ])
 
-
 # ==========================================
 # 3. 체인 조립 (LCEL 방식)
 # ==========================================
@@ -109,18 +143,16 @@ def contextualized_question(input: dict):
         return input["input"]
 
 # (2) 전체 RAG 체인 구성
-# - setup_and_retrieval: 질문을 다듬고(contextualized_question) -> 문서 검색(retriever)
-# - answer_chain: 검색된 문서와 질문을 받아서 -> 답변 생성
+# 변경점: retriever -> ensemble_retriever로 교체
 setup_and_retrieval = RunnableParallel(
     {
-        "context": contextualized_question | retriever,
+        "context": contextualized_question | ensemble_retriever, 
         "input": lambda x: x["input"],
         "chat_history": lambda x: x["chat_history"],
     }
 )
 
 def format_context_for_prompt(input_dict):
-    # prompt에 넣기 위해 문서를 문자열로 변환
     return {
         "context": format_docs(input_dict["context"]),
         "input": input_dict["input"],
@@ -138,7 +170,7 @@ rag_chain = setup_and_retrieval.assign(
 chat_history = [] 
 
 print("\n" + "="*60)
-print(f"입찰메이트 AI ({SELECTED_MODEL}) - LCEL Version")
+print(f"입찰메이트 AI ({SELECTED_MODEL}) - Hybrid RAG Version")
 print("="*60)
 
 while True:
@@ -173,16 +205,19 @@ while True:
         # 출처 표시
         if source_documents:
             print("-" * 60)
-            print("[참고 문서]")
+            print("[참고 문서 (Hybrid 검색)]")
             seen_sources = set()
             for doc in source_documents:
                 source = doc.metadata.get("source", "Unknown")
                 page = doc.metadata.get("page", 0)
                 filename = os.path.basename(source)
                 
+                # 문서 내용 미리보기 (앞 30자)
+                preview = doc.page_content[:30].replace("\n", " ")
+                
                 source_key = f"{filename} (p.{page+1})"
                 if source_key not in seen_sources:
-                    print(f"   • {filename} [Page: {page+1}]")
+                    print(f"   • {filename} [Page: {page+1}] - {preview}...")
                     seen_sources.add(source_key)
             print("-" * 60)
 
