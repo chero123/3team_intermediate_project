@@ -65,9 +65,9 @@
 
 ## SQLite 멀티턴 메모리
 - 멀티턴에서 이전 턴 문서 집합을 재사용하기 위해 **SQLite 기반 세션 메모리**를 사용한다.
-- 세션이 존재하면 **명시적 리셋/후속 힌트/질문 유사도** 규칙으로 문맥 유지 여부를 결정한다.
-  - 추가로, 질문에 **기관명/사업명** 이 명시되면 새 문맥으로 강제 리셋한다.
-- followup으로 판정되면 저장된 문서 ID를 필터로 적용해 문서 흐름이 바뀌지 않도록 한다.
+- 세션이 존재하면 **followup 판정 규칙**으로 문맥 유지 여부를 결정한다.
+- 새 질문이 `single` 또는 `multi`로 분류되면 **새 문맥으로 전환**한다.
+- `followup`으로 판정되면 저장된 문서 ID를 필터로 적용해 문서 흐름이 바뀌지 않도록 한다.
 - 프롬프트에는 **[이전 턴]**(직전 질문+답변 전체)과 **[이전 문서]**(doc_id 목록)가 함께 들어가며,
   이전 턴은 참고용으로만 제공된다.
 - followup/multi 질문은 **검색 전용 쿼리 리라이트**를 수행해 검색 품질을 개선한다.
@@ -169,9 +169,10 @@ analyze_query
   │
   ▼
 route_by_plan
-  ├─► retrieve_single ─┐
-  ├─► retrieve_multi  ─┼─► generate ─► rewrite ─► END
-  └─► retrieve_followup┘
+  ├─► retrieve_single ─────┐
+  ├─► retrieve_multi  ─────┼─► generate ─► rewrite ─► END
+  ├─► retrieve_followup_single ─┤
+  └─► retrieve_followup_multi  ─┘
 ```
 
 OpenAI 파이프라인(`openai_pipeline.py`):
@@ -183,9 +184,10 @@ analyze_query
   │
   ▼
 route_by_plan
-  ├─► retrieve_single ─┐
-  ├─► retrieve_multi  ─┼─► generate ─► rewrite ─► END
-  └─► retrieve_followup┘
+  ├─► retrieve_single ─────┐
+  ├─► retrieve_multi  ─────┼─► generate ─► rewrite ─► END
+  ├─► retrieve_followup_single ─┤
+  └─► retrieve_followup_multi  ─┘
 ```
 
 ## 질문 유형 분류 기준 (single / multi / followup)

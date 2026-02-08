@@ -120,23 +120,18 @@ class FaissVectorStore:
             fetch_k: 필터링 전 후보 수
 
         Returns:
-            Tuple[List[Chunk], List[float]]: 청크와 점수 리스트
+            List[Chunk]: 검색된 청크 리스트
         """
         # 인덱스가 없으면 검색 결과도 없다.
         if self.store is None:
-            return [], []
+            return []
         # 필터 적용 전 후보를 더 뽑고 싶으면 fetch_k를 사용한다.
         fetch = fetch_k or top_k
-        # LangChain이 반환하는 (Document, score) 쌍을 받아 후처리한다.
-        results = self.store.similarity_search_with_score(query, k=fetch)
-        filtered = []
-        # 검색 결과를 Chunk로 변환한다.
-        for doc, score in results:
-            chunk = _doc_to_chunk(doc)
-            filtered.append((chunk, float(score)))
+        # LangChain이 반환하는 Document 리스트를 받아 후처리한다.
+        results = self.store.similarity_search(query, k=fetch)
+        chunks = [_doc_to_chunk(doc) for doc in results]
         # 최종 top_k만 반환한다.
-        selected = filtered[:top_k]
-        return [c for c, _ in selected], [s for _, s in selected]
+        return chunks[:top_k]
 
     def mmr_search(self, query: str, top_k: int, fetch_k: int, lambda_mult: float):
         """
@@ -237,7 +232,7 @@ class Indexer:
         Args:
             chunks: 청크 리스트
         """
-        # 청킹 결과가 너무 클 수 있어 일부 샘플만 저장한다.
+        # 청킹 샘플을 미리보기용으로 저장
         preview = [
             {
                 "id": c.id,
@@ -315,7 +310,7 @@ class Indexer:
         status.avg_chunk_len = float(sum(lengths) / max(1, len(lengths)))
         self._write_preview(chunks)
 
-        # BM25 인덱스를 저장 (RRR 결합용)
+        # BM25 인덱스를 저장 
         print(f"[BM25] build/save start -> {self.config.bm25_index_path}")
         self._build_bm25(chunks)
         print("[BM25] build/save done")

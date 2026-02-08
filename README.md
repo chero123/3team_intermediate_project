@@ -126,7 +126,19 @@ mmr_candidate_pool=10
     - `loadeddata/canplay/loadedmetadata/durationchange` 이벤트에서 `play()` 호출
     - `MutationObserver`로 `src` 변경 감지 후 즉시 `play()` 재시도
     - `setInterval(500ms)`로 `audio.paused && audio.src` 상태를 주기적으로 검사하며 재시도
-    - `send` 클릭 직후 250ms 간격으로 다회 재시도하여 DOM 교체 타이밍 흡수
+  - `send` 클릭 직후 250ms 간격으로 다회 재시도하여 DOM 교체 타이밍 흡수
+
+## 2026-02-07 수정 기록
+아래는 2026-02-07 기준으로 반영한 변경 사항이다.
+
+- **LangGraph 분기 구조 정리**
+  - `followup`을 `followup_single` / `followup_multi`로 분리했다.
+  - 라우팅 노드가 실제로 다른 retrieval 경로를 타도록 변경했다.
+- **문맥 전환 기준 명시**
+  - `single` 또는 `multi`로 분류되면 새 문맥으로 전환한다.
+  - `followup`으로 분류된 경우에만 세션 문서 범위를 재사용한다.
+- **문서 구조 갱신**
+  - `docs/ARCHITECTURE.md`에 최신 분기 구조와 문맥 전환 규칙을 반영했다.
 
 ## 추후 작업
 

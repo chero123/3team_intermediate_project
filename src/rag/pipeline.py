@@ -4,7 +4,7 @@ from __future__ import annotations
 로컬(vLLM) RAG 파이프라인 모듈
 
 흐름:
-- analyze_query → retrieve → generate → rewrite
+- analyze_query -> retrieve -> generate -> rewrite
 """
 
 import os
@@ -19,7 +19,7 @@ from .embeddings import create_embeddings
 from .indexing import FaissVectorStore
 from .llm import LLM, VLLMLLM, generate_answer, rewrite_answer, rewrite_query
 from .memory_store import SessionMemoryStore
-from .retrieval import CrossEncoderReranker, QueryAnalysisAgent, Retriever, Reranker
+from .retrieval import CrossEncoderReranker, QueryAnalysisAgent, Retriever
 from .types import ConversationState, RetrievalPlan, RetrievalResult
 
 
@@ -47,7 +47,7 @@ class RAGPipeline:
         self,
         config: Optional[RAGConfig] = None,
         llm: Optional[LLM] = None,
-        reranker: Optional[Reranker] = None,
+        reranker: Optional[CrossEncoderReranker] = None,
     ) -> None:
         # 설정이 없으면 기본 설정으로 파이프라인을 초기화
         self.config = config or RAGConfig()
@@ -95,6 +95,75 @@ class RAGPipeline:
         # LangGraph로 단계 실행 흐름을 고정한다.
         self.graph = self._build_graph()
 
+    def _build_graph(self) -> StateGraph:
+        """
+        LangGraph 실행 그래프 구축
+
+        Returns:
+            StateGraph: 컴파일된 그래프
+        """
+        # StateGraph는 각 노드를 상태 갱신 함수로 연결한다.
+        builder = StateGraph(RAGState)
+        # 각 노드는 상태 일부를 계산해 반환한다.
+        builder.add_node("analyze_query", self._node_analyze_query)
+        builder.add_node("route_by_plan", self._route_by_plan)
+        builder.add_node("retrieve_single", self._node_retrieve_single)
+        builder.add_node("retrieve_multi", self._node_retrieve_multi)
+        builder.add_node("retrieve_followup_single", self._node_retrieve_followup_single)
+        builder.add_node("retrieve_followup_multi", self._node_retrieve_followup_multi)
+        builder.add_node("generate", self._node_generate)
+        builder.add_node("rewrite", self._node_rewrite)
+
+        # 실행 순서를 START -> analyze -> route -> retrieve -> generate -> rewrite -> END로 고정한다.
+        builder.add_edge(START, "analyze_query")
+        builder.add_edge("analyze_query", "route_by_plan")
+        builder.add_conditional_edges(
+            "route_by_plan",
+            lambda s: s["route_key"],
+            {
+                "single": "retrieve_single",
+                "multi": "retrieve_multi",
+                "followup_single": "retrieve_followup_single",
+                "followup_multi": "retrieve_followup_multi",
+            },
+        )
+        builder.add_edge("retrieve_single", "generate")
+        builder.add_edge("retrieve_multi", "generate")
+        builder.add_edge("retrieve_followup_single", "generate")
+        builder.add_edge("retrieve_followup_multi", "generate")
+        builder.add_edge("generate", "rewrite")
+        builder.add_edge("rewrite", END)
+        return builder.compile()
+
+    @staticmethod
+    def _build_reference_block(chunks: list) -> str:
+        """
+        청크 메타데이터에서 파일명을 수집해 참고 문헌 블록을 만든다.
+        확장자는 제거하고 중복은 제거한다.
+        """
+        names: list[str] = []
+        seen: set[str] = set()
+        for chunk in chunks:
+            meta = chunk.metadata or {}
+            name = meta.get("filename") or meta.get("source_filename")
+            if not name:
+                source_path = meta.get("source_path")
+                if source_path:
+                    name = os.path.basename(str(source_path))
+            if not name:
+                name = meta.get("doc_id")
+            if not name:
+                continue
+            base = os.path.splitext(str(name))[0].strip()
+            if not base or base in seen:
+                continue
+            seen.add(base)
+            names.append(base)
+        if not names:
+            return ""
+        lines = "\n".join(f"- {name}" for name in names)
+        return f"[참고 문헌]\n{lines}"
+
     def ask(self, question: str, session_id: Optional[str] = None) -> str:
         """
         ask는 질문을 받아 답변을 생성
@@ -132,72 +201,6 @@ class RAGPipeline:
             )
         return answer
 
-    def _build_graph(self) -> StateGraph:
-        """
-        LangGraph 실행 그래프 구축
-
-        Returns:
-            StateGraph: 컴파일된 그래프
-        """
-        # StateGraph는 각 노드를 상태 갱신 함수로 연결한다.
-        builder = StateGraph(RAGState)
-        # 각 노드는 상태 일부를 계산해 반환한다.
-        builder.add_node("analyze_query", self._node_analyze_query)
-        builder.add_node("route_by_plan", self._route_by_plan)
-        builder.add_node("retrieve_single", self._node_retrieve)
-        builder.add_node("retrieve_multi", self._node_retrieve)
-        builder.add_node("retrieve_followup", self._node_retrieve)
-        builder.add_node("generate", self._node_generate)
-        builder.add_node("rewrite", self._node_rewrite)
-
-        # 실행 순서를 START -> analyze -> route -> retrieve -> generate -> rewrite -> END로 고정한다.
-        builder.add_edge(START, "analyze_query")
-        builder.add_edge("analyze_query", "route_by_plan")
-        builder.add_conditional_edges(
-            "route_by_plan",
-            lambda s: s["route_key"],
-            {
-                "single": "retrieve_single",
-                "multi": "retrieve_multi",
-                "followup": "retrieve_followup",
-            },
-        )
-        builder.add_edge("retrieve_single", "generate")
-        builder.add_edge("retrieve_multi", "generate")
-        builder.add_edge("retrieve_followup", "generate")
-        builder.add_edge("generate", "rewrite")
-        builder.add_edge("rewrite", END)
-        return builder.compile()
-
-    @staticmethod
-    def _build_reference_block(chunks: list) -> str:
-        """
-        청크 메타데이터에서 파일명을 수집해 참고 문헌 블록을 만든다.
-        확장자는 제거하고 중복은 제거한다.
-        """
-        names: list[str] = []
-        seen: set[str] = set()
-        for chunk in chunks:
-            meta = chunk.metadata or {}
-            name = meta.get("filename") or meta.get("source_filename")
-            if not name:
-                source_path = meta.get("source_path")
-                if source_path:
-                    name = os.path.basename(str(source_path))
-            if not name:
-                name = meta.get("doc_id")
-            if not name:
-                continue
-            base = os.path.splitext(str(name))[0].strip()
-            if not base or base in seen:
-                continue
-            seen.add(base)
-            names.append(base)
-        if not names:
-            return ""
-        lines = "\n".join(f"- {name}" for name in names)
-        return f"[참고 문헌]\n{lines}"
-
     def _route_by_plan(self, state: RAGState) -> dict:
         """
         질문 유형에 따라 검색 노드를 분기한다.
@@ -209,8 +212,12 @@ class RAGPipeline:
             dict: 업데이트할 상태 조각
         """
         question_type = state["plan"].question_type
-        if question_type in {"multi", "followup"}:
-            return {"route_key": question_type}
+        if question_type == "multi":
+            return {"route_key": "multi"}
+        if question_type == "followup":
+            if state["plan"].needs_multi_doc:
+                return {"route_key": "followup_multi"}
+            return {"route_key": "followup_single"}
         return {"route_key": "single"}
 
     def _node_analyze_query(self, state: RAGState) -> dict:
@@ -245,7 +252,7 @@ class RAGPipeline:
             else:
                 # 직전 질문이 multi이면 followup도 multi 전략을 강제한다.
                 if last_question_type == "multi":
-                    plan.question_type = "multi"
+                    plan.question_type = "followup"
                     plan.needs_multi_doc = True
                     plan.strategy = self.config.rrf_strategy
                     plan.notes = f"{plan.notes}; followup via session memory (force multi)"
@@ -272,6 +279,7 @@ class RAGPipeline:
                     plan.needs_multi_doc = False
                     plan.strategy = self.config.similarity_strategy
                 else:
+                    plan.question_type = "followup"
                     plan.needs_multi_doc = True
                     plan.strategy = self.config.rrf_strategy
                 plan.notes = f"{plan.notes}; followup via session memory"
@@ -303,18 +311,10 @@ class RAGPipeline:
                 plan.query = rewritten
         return {"plan": plan}
 
-    def _node_retrieve(self, state: RAGState) -> dict:
+    def _store_retrieval(self, state: RAGState, retrieval: RetrievalResult) -> dict:
         """
-        검색 실행 노드
-
-        Args:
-            state: LangGraph 상태
-
-        Returns:
-            dict: 업데이트할 상태 조각
+        검색 결과를 상태에 반영하고 세션 문서 ID를 저장한다.
         """
-        # 검색 계획에 따라 실제 벡터 검색 + 재랭킹을 수행한다.
-        retrieval = self.retriever.retrieve(state["plan"])
         doc_ids: list[str] = []
         for chunk in retrieval.chunks:
             doc_id = chunk.metadata.get("doc_id")
@@ -324,6 +324,34 @@ class RAGPipeline:
             # SQLite 세션 메모리에 현재 검색 문서 ID를 저장해 다음 턴에서 재사용한다.
             self.memory.save_doc_ids(state["session_id"], doc_ids)
         return {"retrieval": retrieval}
+
+    def _node_retrieve_single(self, state: RAGState) -> dict:
+        """
+        단일 문서 검색 노드
+        """
+        retrieval = self.retriever.retrieve_single(state["plan"])
+        return self._store_retrieval(state, retrieval)
+
+    def _node_retrieve_multi(self, state: RAGState) -> dict:
+        """
+        다문서 검색 노드
+        """
+        retrieval = self.retriever.retrieve_multi(state["plan"])
+        return self._store_retrieval(state, retrieval)
+
+    def _node_retrieve_followup_single(self, state: RAGState) -> dict:
+        """
+        후속(단일) 검색 노드
+        """
+        retrieval = self.retriever.retrieve_followup_single(state["plan"])
+        return self._store_retrieval(state, retrieval)
+
+    def _node_retrieve_followup_multi(self, state: RAGState) -> dict:
+        """
+        후속(다문서) 검색 노드
+        """
+        retrieval = self.retriever.retrieve_followup_multi(state["plan"])
+        return self._store_retrieval(state, retrieval)
 
     def _node_generate(self, state: RAGState) -> dict:
         """

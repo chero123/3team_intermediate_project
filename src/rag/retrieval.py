@@ -31,7 +31,6 @@ QUESTION_TYPE_MULTI = "multi"
 QUESTION_TYPE_FOLLOWUP = "followup"
 
 # 질문 유형 판별에 쓰는 키워드(휴리스틱) 목록이다.
-# Heuristic keywords for question classification (LLM 분류 폴백)
 FOLLOWUP_KEYWORDS = ["그럼", "그렇다면", "또", "추가로", "더", "이어서", "방금", "앞서"]
 MULTI_KEYWORDS = ["여러", "모든", "각각", "기관", "비교", "차이", "서로", "vs", "대비"]
 
@@ -55,6 +54,104 @@ class QueryAnalysis:
     top_k: int
     strategy: str
     notes: str = ""
+
+
+# Retrieval utilities
+def reciprocal_rank_fusion(ranked_lists: List[tuple[List[Chunk], float]], k: int = 60) -> List[Chunk]:
+    """
+    reciprocal_rank_fusion은 RRF 결합 수행
+
+    Args:
+        ranked_lists: 랭킹 리스트 모음
+        k: 보정 상수
+
+    Returns:
+        List[Chunk]: 결합된 랭킹
+    """
+    # RRF는 여러 랭킹을 합쳐 안정적인 상위 결과를 만든다.
+    scores: Dict[str, float] = {}
+    chunk_map: Dict[str, Chunk] = {}
+
+    for ranked, weight in ranked_lists:
+        for rank, chunk in enumerate(ranked, start=1):
+            chunk_map[chunk.id] = chunk
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + weight / (k + rank)
+
+    # 점수가 큰 순서대로 정렬해 최종 랭킹을 만든다.
+    fused = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return [chunk_map[chunk_id] for chunk_id, _ in fused]
+
+
+def _lc_doc_to_chunk(doc: LCDocument) -> Chunk:
+    """
+    LangChain Document를 Chunk로 변환한다.
+
+    Args:
+        doc: LangChain 문서
+
+    Returns:
+        Chunk: 변환된 청크
+    """
+    chunk_id = doc.metadata.get("chunk_id", "")
+    metadata = dict(doc.metadata)
+    metadata.pop("chunk_id", None)
+    return Chunk(id=chunk_id, text=doc.page_content, metadata=metadata)
+
+
+def _load_bm25_from_file(path: str, top_k: int) -> Optional[BM25Retriever]:
+    """
+    저장된 BM25 인덱스를 로드한다.
+    """
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            bm25 = pickle.load(f)
+        bm25.k = top_k
+        return bm25
+    except Exception:
+        return None
+
+
+# Reranker implementation
+class CrossEncoderReranker:
+    """
+    CrossEncoderReranker는 CrossEncoder로 재정렬
+
+    Args:
+        model_path: 리랭커 모델 경로
+        device: 디바이스
+        top_n: 상위 N개 유지
+
+    Returns:
+        None
+    """
+
+    def __init__(self, model_path: str, device: str, top_n: int) -> None:
+        # CrossEncoder는 문장쌍 입력을 받아 relevance 점수를 출력한다.
+        self.model = CrossEncoder(model_path, device=device)
+        self.top_n = top_n
+
+    def rerank(self, query: str, chunks: List[Chunk]) -> List[Chunk]:
+        """
+        rerank는 CrossEncoder 점수 재정렬
+
+        Args:
+            query: 사용자 질문
+            chunks: 청크 리스트
+
+        Returns:
+            List[Chunk]: 재정렬된 청크 리스트
+        """
+        if not chunks:
+            return []
+        # (질문, 청크) 쌍을 만들어 재랭킹 점수를 계산한다.
+        pairs = [[query, chunk.text] for chunk in chunks]
+        scores = self.model.predict(pairs)
+        # 점수 내림차순으로 정렬해 상위 top_n만 반환한다.
+        scored = list(zip(chunks, scores))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [chunk for chunk, _ in scored[: self.top_n]]
 
 
 # Query analysis agent (LLM 분류 + 휴리스틱 폴백)
@@ -138,122 +235,6 @@ class QueryAnalysisAgent:
         return QUESTION_TYPE_SINGLE
 
 
-
-
-# Retrieval utilities
-def reciprocal_rank_fusion(ranked_lists: List[tuple[List[Chunk], float]], k: int = 60) -> List[Chunk]:
-    """
-    reciprocal_rank_fusion은 RRF 결합 수행
-
-    Args:
-        ranked_lists: 랭킹 리스트 모음
-        k: 보정 상수
-
-    Returns:
-        List[Chunk]: 결합된 랭킹
-    """
-    # RRF는 여러 랭킹을 합쳐 안정적인 상위 결과를 만든다.
-    scores: Dict[str, float] = {}
-    chunk_map: Dict[str, Chunk] = {}
-
-    for ranked, weight in ranked_lists:
-        for rank, chunk in enumerate(ranked, start=1):
-            chunk_map[chunk.id] = chunk
-            scores[chunk.id] = scores.get(chunk.id, 0.0) + weight / (k + rank)
-
-    # 점수가 큰 순서대로 정렬해 최종 랭킹을 만든다.
-    fused = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    return [chunk_map[chunk_id] for chunk_id, _ in fused]
-
-
-def _lc_doc_to_chunk(doc: LCDocument) -> Chunk:
-    """
-    LangChain Document를 Chunk로 변환한다.
-
-    Args:
-        doc: LangChain 문서
-
-    Returns:
-        Chunk: 변환된 청크
-    """
-    chunk_id = doc.metadata.get("chunk_id", "")
-    metadata = dict(doc.metadata)
-    metadata.pop("chunk_id", None)
-    return Chunk(id=chunk_id, text=doc.page_content, metadata=metadata)
-
-
-
-def _load_bm25_from_file(path: str, top_k: int) -> Optional[BM25Retriever]:
-    """
-    저장된 BM25 인덱스를 로드한다.
-    """
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, "rb") as f:
-            bm25 = pickle.load(f)
-        bm25.k = top_k
-        return bm25
-    except Exception:
-        return None
-
-
-# Reranker implementations
-class Reranker:
-    def rerank(self, query: str, chunks: List[Chunk]) -> List[Chunk]:
-        """
-        rerank는 검색 결과 재정렬
-
-        Args:
-            query: 사용자 질문
-            chunks: 청크 리스트
-
-        Returns:
-            List[Chunk]: 재정렬된 청크 리스트
-        """
-        raise NotImplementedError
-
-
-class CrossEncoderReranker(Reranker):
-    """
-    CrossEncoderReranker는 CrossEncoder로 재정렬
-
-    Args:
-        model_path: 리랭커 모델 경로
-        device: 디바이스
-        top_n: 상위 N개 유지
-
-    Returns:
-        None
-    """
-
-    def __init__(self, model_path: str, device: str, top_n: int) -> None:
-        # CrossEncoder는 문장쌍 입력을 받아 relevance 점수를 출력한다.
-        self.model = CrossEncoder(model_path, device=device)
-        self.top_n = top_n
-
-    def rerank(self, query: str, chunks: List[Chunk]) -> List[Chunk]:
-        """
-        rerank는 CrossEncoder 점수 재정렬
-
-        Args:
-            query: 사용자 질문
-            chunks: 청크 리스트
-
-        Returns:
-            List[Chunk]: 재정렬된 청크 리스트
-        """
-        if not chunks:
-            return []
-        # (질문, 청크) 쌍을 만들어 재랭킹 점수를 계산한다.
-        pairs = [[query, chunk.text] for chunk in chunks]
-        scores = self.model.predict(pairs)
-        # 점수 내림차순으로 정렬해 상위 top_n만 반환한다.
-        scored = list(zip(chunks, scores))
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return [chunk for chunk, _ in scored[: self.top_n]]
-
-
 # Retriever (strategy dispatcher)
 class Retriever:
     """
@@ -268,15 +249,20 @@ class Retriever:
         None
     """
 
-    def __init__(self, store: FaissVectorStore, config: RAGConfig, reranker: Optional[Reranker] = None) -> None:
+    def __init__(
+        self,
+        store: FaissVectorStore,
+        config: RAGConfig,
+        reranker: Optional[CrossEncoderReranker] = None,
+    ) -> None:
         self.store = store
         self.config = config
         self.reranker = reranker
         self._bm25: Optional[BM25Retriever] = None
 
-    def retrieve(self, plan: RetrievalPlan) -> RetrievalResult:
+    def retrieve_single(self, plan: RetrievalPlan) -> RetrievalResult:
         """
-        retrieve는 검색 계획에 따라 검색 수행
+        단일 문서용 검색을 수행한다. (similarity 전용)
 
         Args:
             plan: 검색 계획
@@ -284,23 +270,42 @@ class Retriever:
         Returns:
             RetrievalResult: 검색 결과
         """
-        # 단일 문서는 similarity, 다문서는 RRF(similarity+mmr+bm25)로 실행한다.
-        if plan.needs_multi_doc:
-            chunks = self._retrieve_with_rrf(plan)
-            scores = None
-        else:
-            chunks, scores = self.store.similarity_search(
-                query=plan.query,
-                top_k=plan.top_k,
-            )
-            # 세션 메모리에서 온 문서 ID 필터가 있으면 결과를 제한한다.
-            chunks = self._apply_doc_id_filter(chunks, plan.doc_id_filter)
+        chunks = self.store.similarity_search(
+            query=plan.query,
+            top_k=plan.top_k,
+        )
+        chunks = self._apply_rerank(plan, chunks)
+        return RetrievalResult(chunks=chunks, plan=plan)
 
-        # 리랭커가 있으면 검색 결과를 한 번 더 정렬한다.
-        if self.reranker is not None:
-            chunks = self.reranker.rerank(plan.query, chunks)[: plan.top_k]
+    def retrieve_multi(self, plan: RetrievalPlan) -> RetrievalResult:
+        """
+        다문서용 검색을 수행한다. (RRF)
+        """
+        chunks = self._retrieve_with_rrf(plan)
+        chunks = self._apply_rerank(plan, chunks)
+        return RetrievalResult(chunks=chunks, plan=plan)
 
-        return RetrievalResult(chunks=chunks, scores=scores, plan=plan)
+    def retrieve_followup_single(self, plan: RetrievalPlan) -> RetrievalResult:
+        """
+        후속 질문(단일 문서)의 검색을 수행한다.
+        doc_id_filter는 파이프라인에서 주입된다.
+        """
+        chunks = self.store.similarity_search(
+            query=plan.query,
+            top_k=plan.top_k,
+        )
+        chunks = self._apply_doc_id_filter(chunks, plan.doc_id_filter)
+        chunks = self._apply_rerank(plan, chunks)
+        return RetrievalResult(chunks=chunks, plan=plan)
+
+    def retrieve_followup_multi(self, plan: RetrievalPlan) -> RetrievalResult:
+        """
+        후속 질문(다문서)의 검색을 수행한다. (RRF)
+        doc_id_filter는 파이프라인에서 주입된다.
+        """
+        chunks = self._retrieve_with_rrf(plan)
+        chunks = self._apply_rerank(plan, chunks)
+        return RetrievalResult(chunks=chunks, plan=plan)
 
     def _retrieve_with_rrf(self, plan: RetrievalPlan) -> List[Chunk]:
         """
@@ -313,7 +318,7 @@ class Retriever:
             List[Chunk]: 검색 결과
         """
         # RRF는 서로 다른 랭킹(유사도/MMR)을 합쳐 안정성을 높인다.
-        sim_chunks, _ = self.store.similarity_search(
+        sim_chunks = self.store.similarity_search(
             query=plan.query,
             top_k=max(plan.top_k, self.config.mmr_candidate_pool),
             fetch_k=self.config.mmr_candidate_pool,
@@ -387,3 +392,11 @@ class Retriever:
         allow = set(doc_id_filter)
         filtered = [chunk for chunk in chunks if chunk.metadata.get("doc_id") in allow]
         return filtered or chunks
+
+    def _apply_rerank(self, plan: RetrievalPlan, chunks: List[Chunk]) -> List[Chunk]:
+        """
+        리랭커가 있으면 검색 결과를 한 번 더 정렬한다.
+        """
+        if self.reranker is None:
+            return chunks
+        return self.reranker.rerank(plan.query, chunks)[: plan.top_k]

@@ -84,17 +84,14 @@ class RetrievalPlan:
 @dataclass
 class RetrievalResult:
     """
-    RetrievalResult는 검색 결과 청크와 점수를 보관
+    RetrievalResult는 검색 결과 청크를 보관
 
     Args:
         chunks: 검색된 청크 리스트
-        scores: 유사도 점수 리스트
         plan: 사용된 검색 계획
     """
     # 청크 리스트 저장
     chunks: List[Chunk]
-    # 점수 리스트 저장
-    scores: Optional[List[float]] = None
     # 사용된 플랜 저장
     plan: Optional[RetrievalPlan] = None
 

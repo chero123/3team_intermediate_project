@@ -1,19 +1,23 @@
+from __future__ import annotations
+
 """
 Gradio 단독 UI
 
 실행:
   uv run python -m server.app
 """
-from __future__ import annotations
 
 import os
 import re
 import uuid
+
 import gradio as gr
 
-from rag.pipeline import RAGPipeline
 from rag.openai_pipeline import OpenAIRAGPipeline
+from rag.pipeline import RAGPipeline
 from tts_runtime.infer_onnx import infer_tts_onnx
+
+_PIPELINE_CACHE: dict[str, object] = {}
 
 
 def _build_pipeline(provider: str):
@@ -22,13 +26,9 @@ def _build_pipeline(provider: str):
     """
     if provider == "openai":
         # OpenAI 전용 파이프라인은 필요할 때만 import한다.
-
         return OpenAIRAGPipeline()
     # 기본은 로컬 vLLM 파이프라인
     return RAGPipeline()
-
-
-_PIPELINE_CACHE: dict[str, object] = {}
 
 
 def get_pipeline(provider: str):
@@ -115,6 +115,7 @@ def _extract_last_turn(history: list[dict[str, str]]) -> tuple[str | None, str |
     """
     Chatbot 히스토리에서 마지막 질문/답변을 추출한다.
     """
+
     def _normalize_content(value: object) -> str:
         if isinstance(value, str):
             return value.strip()
@@ -172,10 +173,12 @@ def _save_feedback(
     memory.save_feedback(session_id, provider_choice, question, answer, rating)
     return "ok"
 
+
 def build_gradio():
     """
     Gradio UI 구성 (API와 동일한 ask 함수 사용)
     """
+
     def chat_with_tts(
         message: str,
         history: list[dict[str, str]],

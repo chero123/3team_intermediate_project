@@ -12,113 +12,6 @@ from .types import Chunk
 load_dotenv()
 
 
-class OpenAILLM:
-    """
-    OpenAILLM은 OpenAI API 호출을 감싸는 간단한 클라이언트 래퍼
-
-    Args:
-        model: 사용할 OpenAI 모델 이름
-        api_key: OpenAI API 키 (None이면 환경변수 사용)
-    """
-
-    def __init__(self, model: str, api_key: Optional[str] = None) -> None:
-        """
-        OpenAI 클라이언트 초기화
-
-        Args:
-            model: 사용할 모델 이름
-            api_key: OpenAI API 키
-        """
-        # OpenAI 클라이언트 생성 (키가 None이면 환경 변수에서 읽음)
-        self.client = OpenAI(api_key=api_key)
-        # 모델 이름 저장
-        self.model = model
-        # GPT-5 계열 여부를 저장 (파라미터 호환성 분기용)
-        self.is_gpt5 = model.startswith("gpt-5")
-
-    def generate(
-        self,
-        prompt: str,
-        max_tokens: int,
-        temperature: float,
-        top_p: float | None = None,
-        repetition_penalty: float | None = None,
-        stop: List[str] | None = None,
-    ) -> str:
-        """
-        프롬프트를 입력으로 텍스트를 생성한다.
-
-        Args:
-            prompt: 모델에 전달할 프롬프트 문자열
-            max_tokens: 생성 토큰 상한
-            temperature: 샘플링 온도
-
-        Returns:
-            str: 생성된 텍스트
-        """
-        # Responses API 호출 결과를 가져온다.
-        resp = self._create_response(prompt, max_tokens, temperature, top_p, repetition_penalty, stop)
-        # 응답 객체에서 텍스트만 추출한다.
-        text = extract_response_text(resp)
-        # 텍스트가 비어 있으면 호출 자체는 성공했더라도 실패로 간주한다. (GPT-5 추론 모델 대비)
-        if not text:
-            raise RuntimeError(
-                "No text extracted from OpenAI response.\n"
-                f"Raw response: {resp}"
-            )
-        return text
-
-    def _create_response(self, prompt, max_tokens, temperature, top_p, repetition_penalty, stop):
-        """
-        Responses API 호출 파라미터를 구성해 요청
-
-        Args:
-            prompt: 입력 프롬프트
-            max_tokens: 생성 토큰 상한
-            temperature: 샘플링 온도
-
-        Returns:
-            Any: OpenAI Responses API 응답 객체
-        """
-        # OpenAI 최소 토큰 제한(>=16)을 보장한다.
-        safe_max_tokens = max(16, max_tokens)
-        # Responses API의 표준 입력 형식으로 payload를 구성한다.
-        params = {
-            # 사용할 모델 지정
-            "model": self.model,
-            # 입력은 메시지 리스트 형식으로 전달
-            "input": [
-                {
-                    # 단일 user 메시지로 프롬프트 전달
-                    "role": "user",
-                    "content": [
-                        # 입력 텍스트 타입은 input_text 사용
-                        {"type": "input_text", "text": prompt}
-                    ],
-                }
-            ],
-            # 생성 토큰 상한
-            "max_output_tokens": safe_max_tokens,
-        }
-
-        # GPT-5 계열은 temperature 대신 reasoning 옵션을 사용한다.
-        if self.is_gpt5:
-            # 토큰 폭주를 막기 위해 저온 추론을 강제한다.
-            params["reasoning"] = {"effort": "low"}
-        else:
-            # GPT-5가 아니면 temperature를 그대로 전달한다.
-            params["temperature"] = temperature
-            if top_p is not None:
-                params["top_p"] = top_p
-
-        # repetition_penalty는 Responses API에 없으므로 무시한다.
-        _ = repetition_penalty
-        _ = stop
-
-        # OpenAI Responses API 호출
-        return self.client.responses.create(**params)
-
-
 def extract_response_text(resp: Any) -> str:
     """
     Responses API 응답에서 텍스트만 추출한다.
@@ -175,6 +68,108 @@ def _strip_rewrite_output(text: str) -> str:
         if marker in cleaned:
             cleaned = cleaned.split(marker, 1)[-1].strip()
     return cleaned
+
+
+class OpenAILLM:
+    """
+    OpenAILLM은 OpenAI API 호출을 감싸는 간단한 클라이언트 래퍼
+
+    Args:
+        model: 사용할 OpenAI 모델 이름
+        api_key: OpenAI API 키 (None이면 환경변수 사용)
+    """
+
+    def __init__(self, model: str, api_key: Optional[str] = None) -> None:
+        """
+        OpenAI 클라이언트 초기화
+
+        Args:
+            model: 사용할 모델 이름
+            api_key: OpenAI API 키
+        """
+        # OpenAI 클라이언트 생성 (키가 None이면 환경 변수에서 읽음)
+        self.client = OpenAI(api_key=api_key)
+        # 모델 이름 저장
+        self.model = model
+        # GPT-5 계열 여부를 저장 (파라미터 호환성 분기용)
+        self.is_gpt5 = model.startswith("gpt-5")
+
+    def generate(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float,
+        top_p: float | None = None,
+    ) -> str:
+        """
+        프롬프트를 입력으로 텍스트를 생성한다.
+
+        Args:
+            prompt: 모델에 전달할 프롬프트 문자열
+            max_tokens: 생성 토큰 상한
+            temperature: 샘플링 온도
+
+        Returns:
+            str: 생성된 텍스트
+        """
+        # Responses API 호출 결과를 가져온다.
+        resp = self._create_response(prompt, max_tokens, temperature, top_p)
+        # 응답 객체에서 텍스트만 추출한다.
+        text = extract_response_text(resp)
+        # 텍스트가 비어 있으면 호출 자체는 성공했더라도 실패로 간주한다. (GPT-5 추론 모델 대비)
+        if not text:
+            raise RuntimeError(
+                "No text extracted from OpenAI response.\n"
+                f"Raw response: {resp}"
+            )
+        return text
+
+    def _create_response(self, prompt, max_tokens, temperature, top_p):
+        """
+        Responses API 호출 파라미터를 구성해 요청
+
+        Args:
+            prompt: 입력 프롬프트
+            max_tokens: 생성 토큰 상한
+            temperature: 샘플링 온도
+
+        Returns:
+            Any: OpenAI Responses API 응답 객체
+        """
+        # OpenAI 최소 토큰 제한(>=16)을 보장한다.
+        safe_max_tokens = max(16, max_tokens)
+        # Responses API의 표준 입력 형식으로 payload를 구성한다.
+        params = {
+            # 사용할 모델 지정
+            "model": self.model,
+            # 입력은 메시지 리스트 형식으로 전달
+            "input": [
+                {
+                    # 단일 user 메시지로 프롬프트 전달
+                    "role": "user",
+                    "content": [
+                        # 입력 텍스트 타입은 input_text 사용
+                        {"type": "input_text", "text": prompt}
+                    ],
+                }
+            ],
+            # 생성 토큰 상한
+            "max_output_tokens": safe_max_tokens,
+        }
+
+        # GPT-5 계열은 temperature 대신 reasoning 옵션을 사용한다.
+        if self.is_gpt5:
+            # 토큰 폭주를 막기 위해 저온 추론을 강제한다.
+            params["reasoning"] = {"effort": "low"}
+        else:
+            # GPT-5가 아니면 temperature를 그대로 전달한다.
+            params["temperature"] = temperature
+            if top_p is not None:
+                params["top_p"] = top_p
+
+        # OpenAI Responses API 호출
+        return self.client.responses.create(**params)
+
 
 # Prompt Builders
 def build_prompt(
@@ -246,6 +241,7 @@ def build_prompt(
 {context}
 """.strip()
 
+
 # Answer Generation
 def generate_answer(
     llm: OpenAILLM,
@@ -281,8 +277,8 @@ def generate_answer(
         max_tokens=config.openai_gpt5_max_tokens,
         temperature=config.response_temperature,
         top_p=config.response_top_p,
-        stop=config.response_stop,
     )
+
 
 # Rewrite / Classification
 def rewrite_answer(llm: OpenAILLM, config: RAGConfig, answer: str) -> str:
@@ -322,7 +318,6 @@ def rewrite_answer(llm: OpenAILLM, config: RAGConfig, answer: str) -> str:
         max_tokens=config.rewrite_max_tokens,
         temperature=config.rewrite_temperature,
         top_p=config.rewrite_top_p,
-        stop=config.rewrite_stop,
     )
     return _strip_rewrite_output(output)
 
@@ -376,8 +371,6 @@ def rewrite_query(
         max_tokens=min(128, config.rewrite_max_tokens),
         temperature=min(0.2, config.rewrite_temperature),
         top_p=config.rewrite_top_p,
-        repetition_penalty=config.rewrite_repetition_penalty,
-        stop=config.rewrite_stop,
     )
     return _strip_rewrite_output(output).strip()
 
@@ -407,7 +400,6 @@ def classify_query_type(llm: OpenAILLM, question: str) -> str:
         max_tokens=32,
         temperature=0.0,
         top_p=1.0,
-        stop=[],
     ).lower()
 
     # 라벨 문자열에서 키워드를 찾아 정규화한다.
