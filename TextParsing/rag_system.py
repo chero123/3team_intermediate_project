@@ -1,6 +1,11 @@
 import os
+import re
 import sys
 import getpass
+import shutil
+import subprocess
+from pathlib import Path
+import uuid
 from dotenv import load_dotenv
 
 from langchain_chroma import Chroma
@@ -11,7 +16,10 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain_core.documents import Document              # 추가
+from langchain_core.documents import Document
+
+# tts 모듈
+from tts_worker import TTSWorker
 
 # ==========================================
 # 0. 환경 설정 및 초기화
@@ -21,7 +29,10 @@ load_dotenv()
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 DB_PATH = os.path.join(PROJECT_ROOT, "data", "chroma_db")
-
+# TTS 입력 경로와 출력 경로를 한 곳에서 관리해 변경 지점을 단일화한다.
+TTS_MODEL_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "melo_yae.onnx"
+TTS_BERT_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "bert_kor.onnx"
+TTS_CONFIG_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "config.json"
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key를 입력하세요: ")
 
@@ -114,8 +125,25 @@ qa_system_prompt = """
 
 규칙:
 1. 문서를 기반으로 사실만 답변하고, 모르면 "문서에 해당 내용이 없습니다"라고 하세요.
-2. 예산, 기간, 날짜 등 숫자는 정확히 기재하세요.
-3. 답변은 보기 좋게 Markdown 형식(볼드체, 리스트 등)을 사용하세요.
+2. 예산, 기간, 날짜 등 숫자를 기재하세요. (숫자 표기 규칙 참고)
+3. 답변은 자연스러운 문장으로만 작성하세요. 목록/불릿/표는 쓰지 마세요.
+4. 답변은 존댓말로 작성하세요.
+5. 문장은 길지 않게 끊어 읽기 쉬운 길이로 유지하세요.
+6. 문단은 2~3문장마다 빈 줄(개행 2개)로 구분하세요.
+7. 괄호는 쓰지 말고, 목록/헤더/컨텍스트 인용은 문장으로 풀어 작성하세요.
+8. 특수문자(% 등)는 한국어로 풀어서 쓰세요.
+9. 출력은 10줄을 넘기지 않게 하세요.
+
+영어 표기 규칙:
+- 영어 단어는 한국어 음역으로만 표기하세요.
+- 예: dashboard -> 대시보드, dataset -> 데이터셋, isp -> 아이에스피, system -> 시스템.
+
+숫자 표기 규칙:
+- 금액은 반드시 한글 화폐식으로 작성하세요.
+- 예: 35,750,000원 -> 3천 5백 7십 5만원
+- 날짜는 'YYYY년 MM월 DD일' 형식으로 작성하세요.
+- 예: 2024-06-24 11:00:00 -> 2024년 6월 24일
+- 기간은 'N개월', 'N주', 'N일' 형식으로 작성하세요.
 
 [검색된 문서]:
 {context}
@@ -165,7 +193,100 @@ rag_chain = setup_and_retrieval.assign(
 )
 
 # ==========================================
-# 4. 메인 실행 루프
+# 4. TTS 보조 함수
+# ==========================================
+
+def _split_sentences(text: str) -> list[str]:
+    # 문장 경계를 기준으로 자른 뒤 구두점을 유지한다.
+    protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", text)
+    parts = re.split(r"([.!?。！？]+)", protected)
+    sentences: list[str] = []
+    buf = ""
+    for part in parts:
+        if not part:
+            continue
+        buf += part
+        if re.fullmatch(r"[.!?。！？]+", part):
+            restored = buf.strip().replace("<DOT>", ".")
+            if restored:
+                sentences.append(restored)
+            buf = ""
+    if buf.strip():
+        sentences.append(buf.strip().replace("<DOT>", "."))
+    return sentences
+
+
+def split_sentences_buffered(buffer: str) -> tuple[list[str], str]:
+    # 소수점 보호
+    protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", buffer)
+    parts = re.split(r"([.!?。！？]+)", protected)
+
+    sentences = []
+    buf = ""
+    for p in parts:
+        if not p:
+            continue
+        buf += p
+        if re.fullmatch(r"[.!?。！？]+", p):
+            sentences.append(buf.replace("<DOT>", ".").strip())
+            buf = ""
+    return [s for s in sentences if s], buf.replace("<DOT>", ".")
+
+
+def _is_junk_line(line: str) -> bool:
+    stripped = re.sub(r"[^0-9A-Za-z가-힣]", "", line)
+    if not stripped:
+        return True
+    if stripped.isdigit():
+        return True
+    digit_ratio = sum(ch.isdigit() for ch in stripped) / max(len(stripped), 1)
+    if digit_ratio > 0.4:
+        return True
+    if len(stripped) < 4:
+        return True
+    return False
+
+
+def _sanitize_answer(text: str) -> str:
+    cleaned_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("컨텍스트") or stripped.startswith("[Source"):
+            continue
+        if _is_junk_line(stripped):
+            continue
+        cleaned_lines.append(stripped)
+    cleaned = " ".join(cleaned_lines)
+    cleaned = re.sub(r"\([^)]*\)", "", cleaned)
+    cleaned = re.sub(r"\[[^\]]*\]", "", cleaned)
+    cleaned = re.sub(r"[^0-9A-Za-z가-힣\s\.\!\?]", " ", cleaned)
+    cleaned = re.sub(r"\d{20,}", "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+
+
+def _select_audio_player(preferred: str | None = None) -> list[str] | None:
+    if preferred in {"none", "off"}:
+        return None
+    if preferred in {"ffplay"}:
+        path = shutil.which(preferred)
+        if not path:
+            return None
+        return [path, "-autoexit", "-nodisp", "-loglevel", "error"]
+    for candidate in ("ffplay",):
+        path = shutil.which(candidate)
+        if not path:
+            continue
+        return [path, "-autoexit", "-nodisp", "-loglevel", "error"]
+    return None
+
+
+# ==========================================
+# 5. 메인 실행 루프
 # ==========================================
 chat_history = [] 
 
@@ -184,21 +305,48 @@ while True:
 
     print("\n답변 생성 중...\n")
     
-    full_response = ""
-    source_documents = []
-
     try:
-        # 스트리밍 실행
+        player_cmd = _select_audio_player("ffplay")
+
+        full_response = ""
+        source_documents = []
+        tts_buffer = ""
+        out_dir = os.path.join(PROJECT_ROOT, "data", "answer")
+        os.makedirs(out_dir, exist_ok=True)
+
+        tts_worker = TTSWorker(
+            model_path=TTS_MODEL_PATH,
+            bert_path=TTS_BERT_PATH,
+            config_path=TTS_CONFIG_PATH,
+            out_dir=out_dir,
+            device="cpu",
+            player_cmd=player_cmd,
+            sanitize_fn=_sanitize_answer,
+            split_fn=_split_sentences,
+        )
+        tts_worker.start()
+
         for chunk in rag_chain.stream({"input": query, "chat_history": chat_history}):
-            
-            # 답변(answer) 스트리밍
             if "answer" in chunk:
-                print(chunk["answer"], end="", flush=True)
-                full_response += chunk["answer"]
-            
-            # 검색된 문서(context) 저장
+                text = chunk["answer"]
+                # 스트리밍 텍스트는 즉시 출력한다.
+                print(text, end="", flush=True)
+                full_response += text
+                tts_buffer += text
+
+                sentences, tts_buffer = split_sentences_buffered(tts_buffer)
+                for sent in sentences:
+                    tts_worker.enqueue(sent)
+
             if "context" in chunk:
                 source_documents = chunk["context"]
+
+        if tts_buffer.strip():
+            sentences = _split_sentences(tts_buffer.strip())
+            for sent in sentences:
+                tts_worker.enqueue(sent)
+
+        tts_worker.close()
 
         print("\n")
 
