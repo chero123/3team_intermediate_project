@@ -1,0 +1,23 @@
+# 1. 웹 인터페이스
+streamlit==1.54.0
+
+# 2. LangChain 핵심 프레임워크
+langchain==1.2.9
+langchain-core==1.2.9
+langchain-community==0.4.1
+langchain-text-splitters==1.1.0
+
+# 3. 모델 및 벡터 DB 연동
+langchain-openai==1.1.7
+langchain-chroma==1.1.0
+chromadb==1.4.1
+openai==2.16.0
+tiktoken==0.12.0
+
+# 4. 하이브리드 검색 및 리랭킹 (필수 의존성)
+rank-bm25==0.2.2
+FlashRank==0.2.10
+
+# 5. 유틸리티
+python-dotenv==1.2.1
+pydantic==2.12.5
