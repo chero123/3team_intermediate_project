@@ -1,10 +1,14 @@
+import json
 import os
 import queue
+import tempfile
 import threading
 import uuid
 from pathlib import Path
 from typing import Callable, Optional
 import subprocess
+
+import soundfile as sf
 
 from tts_runtime.infer_onnx import infer_tts_onnx
 
@@ -38,9 +42,29 @@ class TTSWorker:
         self._lock = threading.Lock()
         self._current_proc: Optional[subprocess.Popen] = None
         self._stop_event = threading.Event()
+        self._last_path: Optional[str] = None
+        self._session_out_path = os.path.join(self._out_dir, f"tts_{uuid.uuid4().hex}.wav")
+        self._sf: Optional[sf.SoundFile] = None
+        self._sample_rate = self._load_sample_rate()
+
+    def _load_sample_rate(self) -> int:
+        try:
+            with open(self._config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            return int(cfg["data"]["sampling_rate"])
+        except Exception:
+            return 22050
 
     def start(self) -> None:
         os.makedirs(self._out_dir, exist_ok=True)
+        # 문장별 합성을 하나의 파일로 누적 저장한다.
+        self._sf = sf.SoundFile(
+            self._session_out_path,
+            mode="w",
+            samplerate=self._sample_rate,
+            channels=1,
+            subtype="PCM_16",
+        )
         self._thread.start()
 
     def enqueue(self, sentence: str) -> None:
@@ -50,6 +74,13 @@ class TTSWorker:
         self._queue.put(None)
         self._queue.join()
         self._thread.join(timeout=2.0)
+        if self._sf is not None:
+            try:
+                self._sf.close()
+            except Exception:
+                pass
+            self._sf = None
+        self._last_path = self._session_out_path
 
     def cancel(self) -> None:
         # 현재 재생 중인 프로세스를 중지하고 큐를 비운다.
@@ -62,6 +93,13 @@ class TTSWorker:
                 except Exception:
                     self._current_proc.kill()
             self._current_proc = None
+        self._last_path = None
+        if self._sf is not None:
+            try:
+                self._sf.close()
+            except Exception:
+                pass
+            self._sf = None
         while True:
             try:
                 item = self._queue.get_nowait()
@@ -71,6 +109,12 @@ class TTSWorker:
             except queue.Empty:
                 break
         self._stop_event.clear()
+
+    def last_path(self) -> Optional[str]:
+        """
+        마지막으로 생성된 TTS 파일 경로를 반환한다.
+        """
+        return self._last_path
 
     def _run(self) -> None:
         while True:
@@ -88,6 +132,7 @@ class TTSWorker:
                     if self._stop_event.is_set():
                         break
                     out_path = os.path.join(self._out_dir, f"tts_{uuid.uuid4().hex}.wav")
+                    self._last_path = out_path
                     audio = infer_tts_onnx(
                         onnx_path=str(self._model_path),
                         bert_onnx_path=str(self._bert_path),
@@ -96,12 +141,27 @@ class TTSWorker:
                         speaker_id=0,
                         language="KR",
                         device=self._device,
-                        out_path=out_path,
+                        out_path=None,
                         log=False,
                     )
+                    if self._sf is not None:
+                        try:
+                            self._sf.write(audio)
+                        except Exception:
+                            pass
                     if self._player_cmd:
-                        with self._lock:
-                            self._current_proc = subprocess.Popen(self._player_cmd + [out_path])
-                        self._current_proc.wait()
+                        try:
+                            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                                sf.write(tmp.name, audio, self._sample_rate, subtype="PCM_16")
+                                temp_path = tmp.name
+                            with self._lock:
+                                self._current_proc = subprocess.Popen(self._player_cmd + [temp_path])
+                            self._current_proc.wait()
+                        finally:
+                            if "temp_path" in locals() and temp_path:
+                                try:
+                                    os.unlink(temp_path)
+                                except Exception:
+                                    pass
             finally:
                 self._queue.task_done()

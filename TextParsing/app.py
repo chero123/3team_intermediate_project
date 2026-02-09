@@ -81,6 +81,23 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
+    st.divider()
+    st.subheader("음성 재생")
+    if "last_tts_path" not in st.session_state:
+        st.session_state.last_tts_path = None
+    audio_placeholder = st.empty()
+
+    if st.session_state.last_tts_path:
+        if st.button("다시 재생"):
+            st.session_state.last_tts_path = st.session_state.last_tts_path
+        audio_placeholder.empty()
+        audio_placeholder.audio(
+            st.session_state.last_tts_path,
+            format="audio/wav",
+        )
+    else:
+        audio_placeholder.caption("재생할 음성이 아직 없습니다.")
+
 # ==========================================
 # 3. RAG 체인 설정 (Hybrid & LCEL Fix)
 # ==========================================
@@ -310,7 +327,7 @@ def _sanitize_answer(text: str) -> str:
     cleaned = " ".join(cleaned_lines)
     cleaned = re.sub(r"\([^)]*\)", "", cleaned)
     cleaned = re.sub(r"\[[^\]]*\]", "", cleaned)
-    cleaned = re.sub(r"[^0-9A-Za-z가-힣\s\.\!\?]", " ", cleaned)
+    cleaned = re.sub(r"[^0-9A-Za-z가-힣\s,\.\!\?]", " ", cleaned)
     cleaned = re.sub(r"\d{20,}", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
@@ -412,6 +429,14 @@ if query := st.chat_input("질문을 입력하세요..."):
                         tts_worker.enqueue(sent)
 
                 tts_worker.close()
+                last_path = tts_worker.last_path()
+                if last_path:
+                    st.session_state.last_tts_path = last_path
+                    audio_placeholder.empty()
+                    audio_placeholder.audio(
+                        st.session_state.last_tts_path,
+                        format="audio/wav",
+                    )
 
                 message_placeholder.markdown(full_response)
                 

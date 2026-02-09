@@ -280,7 +280,7 @@ def _sanitize_answer(text: str) -> str:
     cleaned = " ".join(cleaned_lines)
     cleaned = re.sub(r"\([^)]*\)", "", cleaned)
     cleaned = re.sub(r"\[[^\]]*\]", "", cleaned)
-    cleaned = re.sub(r"[^0-9A-Za-z가-힣\s\.\!\?]", " ", cleaned)
+    cleaned = re.sub(r"[^0-9A-Za-z가-힣\s,\.\!\?]", " ", cleaned)
     cleaned = re.sub(r"\d{20,}", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned

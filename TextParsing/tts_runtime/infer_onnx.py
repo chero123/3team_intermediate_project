@@ -343,11 +343,12 @@ def infer_tts_onnx(
 
     audio = audio[0, 0]
 
-    # 7) Save wav
+    # 7) Save wav (옵션)
     sr = hps.data.sampling_rate
-    sf.write(out_path, audio, sr)
-    if log:
-        print(f"[OK] saved -> {out_path}")
+    if out_path:
+        sf.write(out_path, audio, sr)
+        if log:
+            print(f"[OK] saved -> {out_path}")
     return audio
 
 
