@@ -1,7 +1,9 @@
+# create_vectordb.py
 # ============================================================
 # final_docs/*.md 를 전부(또는 CSV와 매칭되는 것만) 불러와서
 # - (선택) CSV 메타데이터를 각 청크 헤더로 주입
 # - MD의 <!-- page: N --> / <!-- tables: start/end page N --> 구조를 최대한 보존
+# - ✅ 페이지 번호(page)를 metadata에 저장
 # - OpenAI Embedding -> ChromaDB(persist) 구축
 #
 # ✅ OPENAI_API_KEY는 .env에서 로드 (getpass 입력 없음)
@@ -96,15 +98,10 @@ def build_md_index(final_docs_dir: str) -> Dict[str, str]:
         base = norm(os.path.basename(p))  # ex) "A.pdf.md" or "A.md"
         base_no_md = norm(re.sub(r"\.md$", "", base, flags=re.IGNORECASE))  # ex) "A.pdf" or "A"
 
-        # 원형
         idx[base] = p
         idx[base_no_md] = p
-
-        # 소문자
         idx[base.lower()] = p
         idx[base_no_md.lower()] = p
-
-        # 흔한 케이스: csv가 "A.pdf"인데 md는 "A.pdf.md"
         idx[base_no_md + ".md"] = p
         idx[(base_no_md + ".md").lower()] = p
 
@@ -124,21 +121,15 @@ def resolve_md_path(md_index: Dict[str, str], csv_filename: str) -> Optional[str
     if not f:
         return None
 
-    candidates: List[str] = []
-    candidates.append(f)
-    candidates.append(f + ".md")
+    candidates: List[str] = [f, f + ".md"]
 
     base = norm(os.path.basename(f))
-    candidates.append(base)
-    candidates.append(base + ".md")
+    candidates += [base, base + ".md"]
 
-    # 확장자 제거(.pdf/.hwp/.docx 등) 후 재시도
     base_no_ext = re.sub(r"\.[^.]+$", "", base)
     if base_no_ext and base_no_ext != base:
-        candidates.append(base_no_ext)
-        candidates.append(base_no_ext + ".md")
+        candidates += [base_no_ext, base_no_ext + ".md"]
 
-    # 소문자 후보
     candidates += [c.lower() for c in candidates]
 
     for c in candidates:
@@ -163,10 +154,12 @@ TABLE_BLOCK_RE = re.compile(
 )
 PAGE_MARKER_RE = re.compile(r"<!--\s*page:\s*(\d+)\s*-->", re.IGNORECASE)
 
-def split_md_preserve_tables(md_text: str) -> List[str]:
+def split_md_preserve_tables(md_text: str) -> List[Tuple[Optional[int], str]]:
     """
+    반환: [(page_no, chunk_text), ...]
     - 표 블록( tables:start/end )은 통째로 보존
     - 가능하면 <!-- page: N --> 단위로 먼저 나누고, 각 섹션을 청킹
+    - ✅ 각 청크가 속한 page_no를 같이 반환 (metadata로 저장하기 위함)
     """
     tables: List[str] = []
 
@@ -176,42 +169,44 @@ def split_md_preserve_tables(md_text: str) -> List[str]:
 
     protected = TABLE_BLOCK_RE.sub(_table_repl, md_text)
 
-    # 페이지 마커 기준 split: tokens = [pre, "9", content, "10", content, ...]
+    # PAGE_MARKER_RE.split() 결과: [pre, "9", content, "10", content, ...]
     tokens = PAGE_MARKER_RE.split(protected)
-    page_sections: List[str] = []
 
+    sections: List[Tuple[Optional[int], str]] = []
     pre = tokens[0]
     if pre.strip():
-        page_sections.append(pre)
+        sections.append((None, pre))
 
     i = 1
     while i < len(tokens):
-        page_no = tokens[i]
+        page_no_str = tokens[i]
         content = tokens[i + 1] if i + 1 < len(tokens) else ""
-        page_sections.append(f"<!-- page: {page_no} -->\n{content}".strip())
+        try:
+            page_no = int(page_no_str)
+        except:
+            page_no = None
+        sections.append((page_no, f"<!-- page: {page_no_str} -->\n{content}".strip()))
         i += 2
 
-    # 페이지 마커가 없으면 전체를 한 덩어리로
-    if not page_sections:
-        page_sections = [protected]
+    if not sections:
+        sections = [(None, protected)]
 
-    chunks: List[str] = []
-    for sec in page_sections:
+    out: List[Tuple[Optional[int], str]] = []
+    for page_no, sec in sections:
         sec = sec.strip()
         if not sec:
             continue
 
         raw_chunks = text_splitter.split_text(sec)
 
-        # 표 토큰 복구
         for c in raw_chunks:
             def _restore(match: re.Match) -> str:
                 idx = int(match.group(1))
                 return tables[idx]
             restored = re.sub(r"\[\[\[TABLE_BLOCK_(\d+)\]\]\]", _restore, c)
-            chunks.append(restored)
+            out.append((page_no, restored))
 
-    return chunks
+    return out
 
 
 # =========================
@@ -240,7 +235,6 @@ def build_header_from_row(row: pd.Series, source_name: str) -> Tuple[str, Dict]:
     deadline  = str(row.get("입찰 참여 마감일", "정보없음")) or str(row.get("마감일", "정보없음"))
     summary   = str(row.get("사업 요약", "")) or str(row.get("요약", ""))
 
-    # 금액 포맷팅
     try:
         budget_fmt = f"{int(float(budget)):,}"
     except:
@@ -276,6 +270,7 @@ md_index = build_md_index(FINAL_DOCS_DIR)
 documents: List[Document] = []
 match_count = 0
 skipped_count = 0
+page_meta_count = 0  # ✅ page 메타데이터가 들어간 청크 수(확인용)
 
 if USE_CSV_METADATA:
     df = load_csv(CSV_FILE_PATH)
@@ -304,12 +299,22 @@ if USE_CSV_METADATA:
             continue
 
         header, base_meta = build_header_from_row(row, source_name=csv_filename)
+
+        # ✅ (page_no, chunk_text) 목록
         chunks = split_md_preserve_tables(content)
 
-        for c in chunks:
-            page_content = header + c
+        for page_no, chunk_text in chunks:
+            page_content = header + chunk_text
+
             meta = dict(base_meta)
             meta["source_md_path"] = md_path
+
+            # ✅ page 메타데이터 추가 (원본 MD의 <!-- page: N --> 기준)
+            # - 1부터 시작하는 원본 페이지 번호를 그대로 저장
+            if page_no is not None:
+                meta["page"] = page_no
+                page_meta_count += 1
+
             documents.append(Document(page_content=page_content, metadata=meta))
 
         match_count += 1
@@ -318,7 +323,6 @@ if USE_CSV_METADATA:
     print(f"[RESULT] 스킵(미매칭/에러) 수 = {skipped_count}")
 
 else:
-    # CSV 없이 final_docs/*.md 전부 인덱싱
     md_paths = sorted(set(md_index.values()))
     print(f"[INFO] final_docs md files = {len(md_paths)}")
 
@@ -342,8 +346,12 @@ else:
         base_meta = {"source": base, "source_md_path": md_path}
 
         chunks = split_md_preserve_tables(content)
-        for c in chunks:
-            documents.append(Document(page_content=header + c, metadata=dict(base_meta)))
+        for page_no, chunk_text in chunks:
+            meta = dict(base_meta)
+            if page_no is not None:
+                meta["page"] = page_no
+                page_meta_count += 1
+            documents.append(Document(page_content=header + chunk_text, metadata=meta))
 
         match_count += 1
 
@@ -356,6 +364,7 @@ if match_count == 0 or len(documents) == 0:
     sys.exit(1)
 
 print(f"[RESULT] 총 생성된 청크(Document) 수 = {len(documents)}")
+print(f"[RESULT] page 메타데이터 포함 청크 수 = {page_meta_count} (page marker 없는 섹션은 제외)")
 
 
 # =========================
