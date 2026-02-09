@@ -35,6 +35,9 @@ class TTSWorker:
         self._split = split_fn
         self._queue: queue.Queue[str | None] = queue.Queue()
         self._thread = threading.Thread(target=self._run, daemon=True)
+        self._lock = threading.Lock()
+        self._current_proc: Optional[subprocess.Popen] = None
+        self._stop_event = threading.Event()
 
     def start(self) -> None:
         os.makedirs(self._out_dir, exist_ok=True)
@@ -48,19 +51,44 @@ class TTSWorker:
         self._queue.join()
         self._thread.join(timeout=2.0)
 
+    def cancel(self) -> None:
+        # 현재 재생 중인 프로세스를 중지하고 큐를 비운다.
+        self._stop_event.set()
+        with self._lock:
+            if self._current_proc and self._current_proc.poll() is None:
+                self._current_proc.terminate()
+                try:
+                    self._current_proc.wait(timeout=1.0)
+                except Exception:
+                    self._current_proc.kill()
+            self._current_proc = None
+        while True:
+            try:
+                item = self._queue.get_nowait()
+                self._queue.task_done()
+                if item is None:
+                    continue
+            except queue.Empty:
+                break
+        self._stop_event.clear()
+
     def _run(self) -> None:
         while True:
             item = self._queue.get()
             try:
                 if item is None:
                     return
+                if self._stop_event.is_set():
+                    continue
                 clean_sent = self._sanitize(item)
                 if not clean_sent:
                     continue
                 segments = self._split(clean_sent)
                 for segment in segments:
+                    if self._stop_event.is_set():
+                        break
                     out_path = os.path.join(self._out_dir, f"tts_{uuid.uuid4().hex}.wav")
-                    infer_tts_onnx(
+                    audio = infer_tts_onnx(
                         onnx_path=str(self._model_path),
                         bert_onnx_path=str(self._bert_path),
                         config_path=str(self._config_path),
@@ -72,6 +100,8 @@ class TTSWorker:
                         log=False,
                     )
                     if self._player_cmd:
-                        subprocess.run(self._player_cmd + [out_path], check=False)
+                        with self._lock:
+                            self._current_proc = subprocess.Popen(self._player_cmd + [out_path])
+                        self._current_proc.wait()
             finally:
                 self._queue.task_done()

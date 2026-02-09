@@ -219,18 +219,37 @@ def _split_sentences(text: str) -> list[str]:
 def split_sentences_buffered(buffer: str) -> tuple[list[str], str]:
     # 소수점 보호
     protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", buffer)
-    parts = re.split(r"([.!?。！？]+)", protected)
 
-    sentences = []
-    buf = ""
-    for p in parts:
-        if not p:
+    sentences: list[str] = []
+    buf: list[str] = []
+    i = 0
+    while i < len(protected):
+        ch = protected[i]
+        buf.append(ch)
+
+        # 문장 구두점 기준 분리
+        if ch in ".!?。！？":
+            sentence = "".join(buf).replace("<DOT>", ".").strip()
+            if sentence:
+                sentences.append(sentence)
+            buf = []
+            i += 1
             continue
-        buf += p
-        if re.fullmatch(r"[.!?。！？]+", p):
-            sentences.append(buf.replace("<DOT>", ".").strip())
-            buf = ""
-    return [s for s in sentences if s], buf.replace("<DOT>", ".")
+
+        # 줄바꿈/문단 경계 기준 분리
+        if ch == "\n":
+            # 연속 개행을 하나의 경계로 처리
+            while i + 1 < len(protected) and protected[i + 1] == "\n":
+                i += 1
+                buf.append("\n")
+            sentence = "".join(buf).replace("<DOT>", ".").strip()
+            if sentence:
+                sentences.append(sentence)
+            buf = []
+        i += 1
+
+    remainder = "".join(buf).replace("<DOT>", ".").strip()
+    return [s for s in sentences if s], remainder
 
 
 def _is_junk_line(line: str) -> bool:
@@ -265,9 +284,6 @@ def _sanitize_answer(text: str) -> str:
     cleaned = re.sub(r"\d{20,}", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
-
-
-
 
 def _select_audio_player(preferred: str | None = None) -> list[str] | None:
     if preferred in {"none", "off"}:
@@ -306,6 +322,9 @@ while True:
     print("\n답변 생성 중...\n")
     
     try:
+        global _TTS_WORKER
+        if "_TTS_WORKER" in globals() and _TTS_WORKER is not None:
+            _TTS_WORKER.cancel()
         player_cmd = _select_audio_player("ffplay")
 
         full_response = ""
@@ -325,6 +344,7 @@ while True:
             split_fn=_split_sentences,
         )
         tts_worker.start()
+        _TTS_WORKER = tts_worker
 
         for chunk in rag_chain.stream({"input": query, "chat_history": chat_history}):
             if "answer" in chunk:
