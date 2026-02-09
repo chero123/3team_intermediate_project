@@ -83,6 +83,9 @@
 ## Qwen3-VL 상세 문서
 - Qwen3-VL 8B 기능/코드/사용법은 `docs/QWEN3_VL.md` 참고
 
+## vLLM 상세 문서
+- vLLM 개념/구현/기능은 `docs/VLLM.md` 참고
+
 ## 사용법 및 주의사항 (로컬 vLLM vs OpenAI)
 ### 로컬 vLLM 버전
 - 실행: `uv run scripts/run_query.py --tts --device cuda`

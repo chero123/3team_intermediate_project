@@ -247,25 +247,26 @@ class OpenAIRAGPipeline:
         Returns:
             dict: {"plan": RetrievalPlan}
         """
+        question = state["question"]
+        session_id = state["session_id"]
         # 오케스트레이터가 질문/대화 상태를 보고 플랜을 생성한다.
-        analysis = self.analyzer.analyze(state["question"], self.state)
+        analysis = self.analyzer.analyze(question, self.state)
         plan = RetrievalPlan(
-            query=state["question"],
+            query=question,
             top_k=analysis.top_k,
             strategy=analysis.strategy,
             question_type=analysis.question_type,
             needs_multi_doc=analysis.needs_multi_doc,
             notes=analysis.notes,
         )
-        last_question_type = self.memory.get_last_question_type(state["session_id"])
         # 세션 메모리 기반의 followup 판정(명시 키워드 + 짧은 질문 + 유사도) 혼합 규칙
-        last_question = self.memory.get_last_question(state["session_id"])
-        last_question_type = self.memory.get_last_question_type(state["session_id"])
+        last_question = self.memory.get_last_question(session_id)
+        last_question_type = self.memory.get_last_question_type(session_id)
         if last_question:
-            q = state["question"]
+            q = question
             # 사용자가 명시적으로 문맥 리셋을 요청하면 필터를 비우고 새 질문으로 처리한다.
             if any(keyword in q for keyword in self.config.memory_reset_keywords):
-                self.memory.clear_session_docs(state["session_id"])
+                self.memory.clear_session_docs(session_id)
             else:
                 # 직전 질문이 multi이면 followup도 multi 전략을 강제한다.
                 if last_question_type == "multi":
@@ -273,54 +274,56 @@ class OpenAIRAGPipeline:
                     plan.needs_multi_doc = True
                     plan.strategy = self.config.rrf_strategy
                     plan.notes = f"{plan.notes}; followup via session memory (force multi)"
-                    doc_ids = self.memory.load_doc_ids(state["session_id"])
+                    doc_ids = self.memory.load_doc_ids(session_id)
                     if doc_ids:
                         plan.doc_id_filter = doc_ids
-                    last_q, last_a = self.memory.get_last_turn(state["session_id"])
+                    last_q, last_a = self.memory.get_last_turn(session_id)
                     rewritten = rewrite_query(
                         self.small_llm,
                         self.config,
-                        state["question"],
+                        question,
                         previous_question=last_q,
                         previous_answer=last_a,
                     )
                     if rewritten:
                         plan.query = rewritten
                     return {"plan": plan}
-                followup_hint = any(keyword in q for keyword in self.config.memory_followup_keywords)
-                if len(q) < 30:
-                    followup_hint = True
-                # followup으로 확정되면 기존 문서 범위를 재사용한다.
-                if plan.question_type != "multi":
-                    plan.question_type = "followup"
-                    plan.needs_multi_doc = False
-                    plan.strategy = self.config.similarity_strategy
-                else:
-                    plan.question_type = "followup"
-                    plan.needs_multi_doc = True
-                    plan.strategy = self.config.rrf_strategy
-                plan.notes = f"{plan.notes}; followup via session memory"
-                # SQLite 세션 메모리에서 직전 검색 문서 ID를 불러와 후속 질문 범위를 제한한다.
-                doc_ids = self.memory.load_doc_ids(state["session_id"])
-                if doc_ids:
-                    plan.doc_id_filter = doc_ids
-                last_q, last_a = self.memory.get_last_turn(state["session_id"])
-                rewritten = rewrite_query(
-                    self.small_llm,
-                    self.config,
-                    state["question"],
-                    previous_question=last_q,
-                    previous_answer=last_a,
+                followup_hint = any(
+                    keyword in q for keyword in self.config.memory_followup_keywords
                 )
-                if rewritten:
-                    plan.query = rewritten
+                followup_hint = followup_hint or len(q) < 30
+                # followup으로 확정되면 기존 문서 범위를 재사용한다.
+                if followup_hint:
+                    plan.question_type = "followup"
+                    if plan.question_type != "multi":
+                        plan.needs_multi_doc = False
+                        plan.strategy = self.config.similarity_strategy
+                    else:
+                        plan.needs_multi_doc = True
+                        plan.strategy = self.config.rrf_strategy
+                    plan.notes = f"{plan.notes}; followup via session memory"
+                    # SQLite 세션 메모리에서 직전 검색 문서 ID를 불러와 후속 질문 범위를 제한한다.
+                    doc_ids = self.memory.load_doc_ids(session_id)
+                    if doc_ids:
+                        plan.doc_id_filter = doc_ids
+                    last_q, last_a = self.memory.get_last_turn(session_id)
+                    rewritten = rewrite_query(
+                        self.small_llm,
+                        self.config,
+                        question,
+                        previous_question=last_q,
+                        previous_answer=last_a,
+                    )
+                    if rewritten:
+                        plan.query = rewritten
+                    return {"plan": plan}
         # 멀티/후속 질문은 검색용 쿼리로 재작성해 검색 품질을 높인다.
         if plan.question_type in {"multi", "followup"}:
-            last_q, last_a = self.memory.get_last_turn(state["session_id"])
+            last_q, last_a = self.memory.get_last_turn(session_id)
             rewritten = rewrite_query(
                 self.small_llm,
                 self.config,
-                state["question"],
+                question,
                 previous_question=last_q,
                 previous_answer=last_a,
             )

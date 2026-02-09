@@ -17,6 +17,7 @@ from rag.openai_pipeline import OpenAIRAGPipeline
 from rag.pipeline import RAGPipeline
 from tts_runtime.infer_onnx import infer_tts_onnx
 
+# 파이프라인 인스턴스를 재사용하기 위한 캐시
 _PIPELINE_CACHE: dict[str, object] = {}
 
 
@@ -25,7 +26,7 @@ def _build_pipeline(provider: str):
     프로바이더별 파이프라인을 생성한다.
     """
     if provider == "openai":
-        # OpenAI 전용 파이프라인은 필요할 때만 import한다.
+        # OpenAI 전용 파이프라인
         return OpenAIRAGPipeline()
     # 기본은 로컬 vLLM 파이프라인
     return RAGPipeline()
@@ -51,10 +52,11 @@ def ask(question: str, provider: str | None = None, session_id: str | None = Non
     """
     질문을 파이프라인에 전달하고 답변을 반환한다.
     """
-    # provider 지정
+    # provider 지정 (미지정 시 환경변수 기본값 사용)
     mode = provider or os.getenv("RAG_PROVIDER", "local")
+    # provider에 해당하는 파이프라인을 가져온다.
     pipeline = get_pipeline(mode)
-    # session_id는 SQLite 세션 메모리의 키로 사용되어 멀티턴 문맥을 유지한다.
+    # session_id는 SQLite 세션 메모리 키다.
     # 파이프라인의 ask는 문자열 답변을 반환한다.
     return pipeline.ask(question, session_id=session_id)  # type: ignore[no-any-return]
 
@@ -63,6 +65,7 @@ def _tts_paths():
     """
     TTS 모델/출력 경로를 구성한다.
     """
+    # 프로젝트 루트 경로
     base = os.path.dirname(os.path.dirname(__file__))
     # TTS 모델/설정 파일 위치
     model_path = os.path.join(base, "models", "melo_yae", "melo_yae.onnx")
@@ -216,30 +219,38 @@ def build_gradio():
       --bubble-bot: #ffffff;
       --shadow: 0 12px 30px rgba(16, 24, 40, 0.08);
     }
+    /* 전역 배경/폰트 */
     body, .gradio-container {
       font-family: "Sora", "IBM Plex Sans", "Noto Sans KR", sans-serif;
       background: var(--bg);
       color: var(--ink);
     }
+    /* Gradio 기본 폭 제한 해제 */
     .gradio-container { max-width: none !important; }
+    /* 기본 footer 제거 */
     footer { display: none !important; }
+    /* 전체 레이아웃 래퍼 */
     .rag-shell {
       max-width: 1320px;
       margin: 0 auto;
       padding: 22px 16px 28px;
     }
+    /* 상단 헤더 */
     .rag-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 16px;
     }
+    /* 타이틀 텍스트 */
     .rag-title {
       font-weight: 700;
       font-size: 26px;
       letter-spacing: -0.4px;
     }
+    /* 서브타이틀 */
     .rag-subtitle { color: var(--muted); margin-top: 4px; }
+    /* 우측 칩 */
     .rag-chip {
       font-size: 12px;
       color: var(--muted);
@@ -247,6 +258,7 @@ def build_gradio():
       padding: 4px 10px;
       border-radius: 999px;
     }
+    /* 카드 공통 */
     .rag-card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -254,47 +266,58 @@ def build_gradio():
       padding: 14px;
       box-shadow: var(--shadow);
     }
+    /* 채팅 영역 최소 높이 */
     .rag-chat {
       min-height: 620px;
       border-radius: 18px;
     }
+    /* 우측 패널 */
     .rag-panel {
       background: transparent;
       border-radius: 18px;
     }
+    /* 챗봇 컨테이너 */
     .rag-chatbot {
       border-radius: 18px;
     }
+    /* 메시지 말풍선 */
     .rag-chatbot .message {
       border-radius: 16px;
       padding: 12px 14px;
       max-width: 82%;
       line-height: 1.55;
     }
+    /* 사용자 말풍선 */
     .rag-chatbot .message.user {
       background: var(--bubble-user);
       border: 1px solid #cbeade;
       margin-left: auto;
     }
+    /* 어시스턴트 말풍선 */
     .rag-chatbot .message.bot {
       background: var(--bubble-bot);
       border: 1px solid var(--border);
       margin-right: auto;
     }
+    /* 입력창 */
     .rag-input {
       border: 1px solid var(--border) !important;
       border-radius: 14px !important;
     }
+    /* 전송 버튼 */
     .rag-send {
       background: var(--accent) !important;
       color: #fff !important;
       border-radius: 12px !important;
       border: none !important;
     }
+    /* 보조 버튼(초기화/피드백) */
     .rag-clear {
       border-radius: 12px !important;
     }
+    /* 오디오 카드 */
     .rag-audio .wrap { background: var(--panel); }
+    /* 우측 패널 타이틀 */
     .rag-side-title {
       font-weight: 600;
       margin-bottom: 8px;
@@ -361,23 +384,33 @@ def build_gradio():
                 """
                 <script>
                 (function() {
+                  // 브라우저 정책상 사용자 제스처가 있어야 자동 재생이 허용된다.
                   let userInteracted = false;
                   const markInteracted = () => { userInteracted = true; };
                   window.addEventListener("click", markInteracted, { once: true });
                   window.addEventListener("keydown", markInteracted, { once: true });
 
                   function tryPlayOnce() {
+                    // 제스처가 없으면 재생 시도하지 않는다.
                     if (!userInteracted) return;
+                    // Gradio Audio 컴포넌트의 루트 DOM
                     const root = document.getElementById("rag-audio");
                     if (!root) return;
+                    // 실제 <audio> 엘리먼트
                     const audio = root.querySelector("audio");
                     if (!audio) return;
+                    // autoplay/preload 보장
+                    audio.autoplay = true;
+                    audio.preload = "auto";
+                    // src가 있고 일시정지 상태면 재생 시도
                     if (audio.paused && audio.src) {
+                      audio.load();
                       audio.play().catch(() => {});
                     }
                   }
 
                   function scheduleRetries(times, delayMs) {
+                    // 일정 횟수 재시도로 로딩 지연/DOM 교체에 대응
                     let count = 0;
                     const id = setInterval(() => {
                       tryPlayOnce();
@@ -387,6 +420,7 @@ def build_gradio():
                   }
 
                   function tryAttach() {
+                    // Audio DOM을 찾아 이벤트 리스너를 등록
                     const root = document.getElementById("rag-audio");
                     if (!root) return;
                     const audio = root.querySelector("audio");
@@ -394,6 +428,7 @@ def build_gradio():
 
                     const tryPlay = () => tryPlayOnce();
 
+                    // 로딩 단계별 이벤트에서 재생 시도
                     audio.addEventListener("loadeddata", tryPlay);
                     audio.addEventListener("canplay", tryPlay);
                     audio.addEventListener("loadedmetadata", tryPlay);
@@ -401,6 +436,11 @@ def build_gradio():
 
                     // src가 바뀔 때마다 재생을 재시도한다.
                     const srcObserver = new MutationObserver(() => {
+                      if (audio) {
+                        audio.autoplay = true;
+                        audio.preload = "auto";
+                        audio.load();
+                      }
                       tryPlay();
                       scheduleRetries(6, 250);
                     });
@@ -414,12 +454,14 @@ def build_gradio():
                     }
                   }
 
+                  // 전체 DOM 변경 시 Audio를 다시 탐색해 연결한다.
                   const observer = new MutationObserver(() => {
                     tryAttach();
                   });
                   observer.observe(document.body, { childList: true, subtree: true });
                   tryAttach();
 
+                  // 전송 버튼 클릭 시 사용자 제스처 처리 + 재생 재시도
                   const sendBtn = document.getElementById("send-btn");
                   if (sendBtn) {
                     sendBtn.addEventListener("click", () => {

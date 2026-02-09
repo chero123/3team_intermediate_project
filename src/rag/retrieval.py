@@ -301,7 +301,7 @@ class Retriever:
     def retrieve_followup_multi(self, plan: RetrievalPlan) -> RetrievalResult:
         """
         후속 질문(다문서)의 검색을 수행한다. (RRF)
-        doc_id_filter는 파이프라인에서 주입된다.
+        doc_id_filter는 _retrieve_with_rrf()에서 주입된다.
         """
         chunks = self._retrieve_with_rrf(plan)
         chunks = self._apply_rerank(plan, chunks)
