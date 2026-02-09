@@ -5,7 +5,6 @@ import getpass
 import shutil
 import subprocess
 from pathlib import Path
-import uuid
 from dotenv import load_dotenv
 
 from langchain_chroma import Chroma
@@ -20,6 +19,7 @@ from langchain_core.documents import Document
 
 # tts 모듈
 from tts_worker import TTSWorker
+from memory_store import SessionMemoryStore
 
 # ==========================================
 # 0. 환경 설정 및 초기화
@@ -29,10 +29,15 @@ load_dotenv()
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 DB_PATH = os.path.join(PROJECT_ROOT, "data", "chroma_db")
+# 대화 이력 SQLite 경로
+CHAT_DB_PATH = os.path.join(PROJECT_ROOT, "data", "chat_log.sqlite")
 # TTS 입력 경로와 출력 경로를 한 곳에서 관리해 변경 지점을 단일화한다.
 TTS_MODEL_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "melo_yae.onnx"
 TTS_BERT_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "bert_kor.onnx"
 TTS_CONFIG_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "config.json"
+
+# SQLite 저장소
+CHAT_STORE = SessionMemoryStore(CHAT_DB_PATH)
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key를 입력하세요: ")
 
@@ -369,6 +374,9 @@ while True:
         tts_worker.close()
 
         print("\n")
+
+        # 질문/답변 저장 (rating은 NULL)
+        CHAT_STORE.save_turn(query, full_response)
 
         # 출처 표시
         if source_documents:

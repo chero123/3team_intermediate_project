@@ -21,6 +21,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 # tts 고유 모듈
 from tts_worker import TTSWorker
+from memory_store import SessionMemoryStore
 
 # 전역 TTS 워커: 새 질문이 들어오면 이전 재생을 즉시 중단한다.
 _TTS_WORKER: TTSWorker | None = None
@@ -32,10 +33,15 @@ _TTS_WORKER: TTSWorker | None = None
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 DB_PATH = os.path.join(PROJECT_ROOT, "data", "chroma_db")
+# 대화 이력 SQLite 경로
+CHAT_DB_PATH = os.path.join(PROJECT_ROOT, "data", "chat_log.sqlite")
 # TTS 입력 경로와 출력 경로를 한 곳에서 관리해 변경 지점을 단일화한다.
 TTS_MODEL_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "melo_yae.onnx"
 TTS_BERT_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "bert_kor.onnx"
 TTS_CONFIG_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "config.json"
+
+# SQLite 저장소
+CHAT_STORE = SessionMemoryStore(CHAT_DB_PATH)
 
 # ==========================================
 # 1. 화면 기본 설정
@@ -51,6 +57,14 @@ st.markdown("""
 - **Dense(의미)**: 문맥과 의미를 파악하여 검색 (Chroma)
 - **Sparse(키워드)**: 공고 번호, 예산, 모델명 등 정확한 매칭 검색 (BM25)
 """)
+
+# 세션 상태 기본값을 먼저 초기화한다. (사이드바/메인 공용)
+st.session_state.setdefault("messages", [])
+st.session_state.setdefault("last_answer_ready", False)
+st.session_state.setdefault("last_q", None)
+st.session_state.setdefault("last_a", None)
+st.session_state.setdefault("last_tts_path", None)
+st.session_state.setdefault("just_answered", False)
 
 # ==========================================
 # 2. 사이드바 (설정)
@@ -83,8 +97,6 @@ with st.sidebar:
 
     st.divider()
     st.subheader("음성 재생")
-    if "last_tts_path" not in st.session_state:
-        st.session_state.last_tts_path = None
     audio_placeholder = st.empty()
 
     if st.session_state.last_tts_path:
@@ -97,6 +109,29 @@ with st.sidebar:
         )
     else:
         audio_placeholder.caption("재생할 음성이 아직 없습니다.")
+
+    st.divider()
+    st.subheader("피드백")
+    if st.session_state.last_answer_ready and st.session_state.last_q and st.session_state.last_a:
+        col_like, col_dislike = st.columns(2)
+        with col_like:
+            if st.button("👍 좋아요"):
+                ok = CHAT_STORE.update_rating(
+                    st.session_state.last_q,
+                    st.session_state.last_a,
+                    1,
+                )
+                st.toast("저장 완료" if ok else "저장할 대화가 없습니다.")
+        with col_dislike:
+            if st.button("👎 싫어요"):
+                ok = CHAT_STORE.update_rating(
+                    st.session_state.last_q,
+                    st.session_state.last_a,
+                    -1,
+                )
+                st.toast("저장 완료" if ok else "저장할 대화가 없습니다.")
+    else:
+        st.caption("답변이 생성된 후 피드백을 남길 수 있습니다.")
 
 # ==========================================
 # 3. RAG 체인 설정 (Hybrid & LCEL Fix)
@@ -353,6 +388,12 @@ def _select_audio_player(preferred: str | None = None) -> list[str] | None:
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "last_answer_ready" not in st.session_state:
+    st.session_state.last_answer_ready = False
+if "last_q" not in st.session_state:
+    st.session_state.last_q = None
+if "last_a" not in st.session_state:
+    st.session_state.last_a = None
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -365,6 +406,9 @@ if query := st.chat_input("질문을 입력하세요..."):
         st.stop()
 
     st.session_state.messages.append({"role": "user", "content": query})
+    st.session_state.last_answer_ready = False
+    st.session_state.last_q = None
+    st.session_state.last_a = None
     with st.chat_message("user"):
         st.markdown(query)
 
@@ -439,6 +483,13 @@ if query := st.chat_input("질문을 입력하세요..."):
                     )
 
                 message_placeholder.markdown(full_response)
+
+                # 질문/답변 저장 (rating은 NULL)
+                CHAT_STORE.save_turn(query, full_response)
+                st.session_state.last_answer_ready = True
+                st.session_state.last_q = query
+                st.session_state.last_a = full_response
+                st.session_state.just_answered = True
                 
                 if source_docs:
                     with st.expander("📚 참고 문서 확인하기 (Hybrid 검색)"):
@@ -458,3 +509,7 @@ if query := st.chat_input("질문을 입력하세요..."):
 
             except Exception as e:
                 st.error(f"에러 발생: {e}")
+
+    if st.session_state.just_answered:
+        st.session_state.just_answered = False
+        st.rerun()
