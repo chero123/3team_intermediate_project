@@ -38,12 +38,18 @@ class TTSWorker:
         self._sanitize = sanitize_fn
         self._split = split_fn
         self._queue: queue.Queue[str | None] = queue.Queue()
+        # 합성/재생은 백그라운드 스레드에서 직렬 처리한다.
         self._thread = threading.Thread(target=self._run, daemon=True)
+        # 재생 프로세스 접근 동기화용 (중단/교체 시 충돌 방지)
         self._lock = threading.Lock()
+        # 현재 재생 중인 외부 플레이어 프로세스 핸들
         self._current_proc: Optional[subprocess.Popen] = None
+        # cancel 시 즉시 중단 플래그
         self._stop_event = threading.Event()
         self._last_path: Optional[str] = None
+        # 세션 단위 누적 출력 파일 (문장별 합성 결과를 한 파일로 저장)
         self._session_out_path = os.path.join(self._out_dir, f"tts_{uuid.uuid4().hex}.wav")
+        # soundfile 핸들 (열려있는 동안 계속 write)
         self._sf: Optional[sf.SoundFile] = None
         self._sample_rate = self._load_sample_rate()
 
@@ -65,12 +71,15 @@ class TTSWorker:
             channels=1,
             subtype="PCM_16",
         )
+        # 백그라운드 스레드 시작
         self._thread.start()
 
     def enqueue(self, sentence: str) -> None:
+        # 합성할 문장을 큐에 넣는다. None은 종료 신호로 사용됨.
         self._queue.put(sentence)
 
     def close(self) -> None:
+        # 종료 신호를 넣고 큐 처리 완료를 기다린다.
         self._queue.put(None)
         self._queue.join()
         self._thread.join(timeout=2.0)
@@ -80,6 +89,7 @@ class TTSWorker:
             except Exception:
                 pass
             self._sf = None
+        # 마지막 세션 파일 경로를 유지
         self._last_path = self._session_out_path
 
     def cancel(self) -> None:
@@ -100,6 +110,7 @@ class TTSWorker:
             except Exception:
                 pass
             self._sf = None
+        # 큐에 남아있는 문장을 모두 버린다.
         while True:
             try:
                 item = self._queue.get_nowait()
@@ -124,6 +135,7 @@ class TTSWorker:
                     return
                 if self._stop_event.is_set():
                     continue
+                # 전처리(정리/정규화) 후 짧은 조각으로 분리한다.
                 clean_sent = self._sanitize(item)
                 if not clean_sent:
                     continue
@@ -133,6 +145,7 @@ class TTSWorker:
                         break
                     out_path = os.path.join(self._out_dir, f"tts_{uuid.uuid4().hex}.wav")
                     self._last_path = out_path
+                    # ONNX 모델로 단일 세그먼트 합성
                     audio = infer_tts_onnx(
                         onnx_path=str(self._model_path),
                         bert_onnx_path=str(self._bert_path),
@@ -144,11 +157,13 @@ class TTSWorker:
                         out_path=None,
                         log=False,
                     )
+                    # 세션 누적 파일에 기록 (한 파일로 이어 붙임)
                     if self._sf is not None:
                         try:
                             self._sf.write(audio)
                         except Exception:
                             pass
+                    # 재생은 문장 단위 임시 파일로 수행 (플레이어 제어 때문)
                     if self._player_cmd:
                         try:
                             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
