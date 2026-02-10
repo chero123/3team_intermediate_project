@@ -1,5 +1,7 @@
 # 라이브러리
 import os
+import sys
+import builtins
 import glob
 import zlib
 import struct
@@ -23,6 +25,90 @@ import time
 from dataclasses import dataclass, field
 import shutil
 from pathlib import Path
+
+# ============================================
+# text_parsing_1.py 전용 로그(JSONL)
+# ============================================
+
+
+class _TeeStream:
+    """
+    sys.stdout/sys.stderr에 쓰이는 모든 텍스트를 JSONL로 저장한다.
+    """
+
+    def __init__(self, original_stream, log_path: str, stream_name: str):
+        self._orig = original_stream
+        self._log_path = log_path
+        self._stream = stream_name
+        self._buffer = ""
+
+    def write(self, message: str):
+        if not message:
+            return 0
+        # 원래 스트림에도 출력
+        self._orig.write(message)
+        self._orig.flush()
+        # 줄 단위 JSONL 기록
+        self._buffer += message
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            line = line.rstrip("\r")
+            if not line:
+                continue
+            entry = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "stream": self._stream,
+                "message": line,
+            }
+            try:
+                with open(self._log_path, "a", encoding="utf-8") as f:
+                    json.dump(entry, f, ensure_ascii=False)
+                    f.write("\n")
+            except Exception:
+                pass
+        return len(message)
+
+    def flush(self):
+        self._orig.flush()
+
+    def fileno(self):
+        return self._orig.fileno()
+
+
+def _init_process_json_logger():
+    """
+    text_parsing_1.py 실행 시 출력되는 모든 stdout/stderr을 JSONL로 기록한다.
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    log_dir = os.path.join(base_dir, "data")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "process_log.jsonl")
+
+    # 초기화 로그 1회 기록
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "stream": "system",
+                    "message": "text_parsing_1 logger initialized",
+                },
+                f,
+                ensure_ascii=False,
+            )
+            f.write("\n")
+    except Exception:
+        pass
+
+    sys.stdout = _TeeStream(sys.stdout, log_path, "stdout")
+    sys.stderr = _TeeStream(sys.stderr, log_path, "stderr")
+
+
+# 모듈 로드시 바로 활성화 (전체 프로세스 로그 캡처)
+_init_process_json_logger()
+
+
+
 
 try:
     from docx import Document as DocxDocument
@@ -133,7 +219,7 @@ QWEN3_VL_ENABLED: bool = True if VLM_AVAILABLE else False
 
 # 중요: 다운로드한 모델 폴더의 절대 경로를 입력하세요.
 # 예: "C:/Models/Qwen2-VL-7B-Instruct" 또는 "/home/user/models/qwen3-vl"
-QWEN3_VL_MODEL_PATH: str = "./models/qwen2.5-vl-7b"
+QWEN3_VL_MODEL_PATH: str = "models/qwen3-vl-8b"
 
 # Qwen3-VL (VLM) 설정
 QWEN3_VL_PROMPT: str = (
@@ -574,6 +660,37 @@ def record_vlm_log(file_path: str, vlm_dict: Dict[int, str], provider: str):
     with open(log_path, "w", encoding="utf-8") as f:
         json.dump(logs, f, ensure_ascii=False, indent=2)
     print(f"[VLM LOG] '{file_name}' 추출 정보가 {log_path}에 기록되었습니다.")
+
+
+def record_vlm_error(file_path: str, provider: str, error: str):
+    """
+    VLM 오류를 JSON 로그 파일로 기록합니다.
+    저장 위치: data/vlm_stats.json
+    """
+    log_dir = "data"
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "vlm_stats.json")
+
+    file_name = os.path.basename(file_path)
+    entry = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "filename": file_name,
+        "provider": provider,
+        "error": error,
+    }
+
+    logs = []
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                logs = json.load(f)
+        except Exception:
+            logs = []
+
+    logs.append(entry)
+    with open(log_path, "w", encoding="utf-8") as f:
+        json.dump(logs, f, ensure_ascii=False, indent=2)
+    print(f"[VLM LOG] '{file_name}' 오류 정보가 {log_path}에 기록되었습니다.")
 
 
 def extract_text_from_pdf_with_vlm(path: str) -> tuple[str, str]:
@@ -1046,6 +1163,18 @@ def _prepare_vllm_inputs(messages: list, processor: AutoProcessor) -> dict:
         return_video_kwargs=True,
         return_video_metadata=True,
     )
+    # 디버그: NoneType iterable 오류 추적용 로그
+    try:
+        print(
+            "[VLM][debug] image_inputs:",
+            "none" if image_inputs is None else type(image_inputs),
+            "| video_inputs:",
+            "none" if video_inputs is None else type(video_inputs),
+            "| video_kwargs:",
+            "none" if video_kwargs is None else type(video_kwargs),
+        )
+    except Exception:
+        pass
     # vLLM의 multi_modal_data 포맷을 구성한다.
     mm_data = {}
     if image_inputs is not None:
@@ -1167,6 +1296,10 @@ def extract_vlm_text_from_pdf(path: str) -> Dict[int, str]:
         return result_dict
     except Exception as exc:
         print(f"[VLM] extract error: {exc}")
+        try:
+            record_vlm_error(path, "qwen3", str(exc))
+        except Exception:
+            pass
         return {}
 
 
@@ -1717,7 +1850,7 @@ if __name__ == "__main__":
     #   huggingface-cli download Qwen/Qwen2.5-VL-7B-Instruct --local-dir ./models/qwen2.5-vl-7b
     set_vlm_config(
         enabled=True,
-        model_path=r"D:\01.project\ai06-level2-project\models\qwen2.5-vl-7b",
+        model_path=r"models/qwen3-vl-8b",
     )
 
     # OpenAI VLM 설정 (provider="openai" 사용 시)

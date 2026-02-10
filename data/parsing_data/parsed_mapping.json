@@ -1,0 +1,810 @@
+[
+  {
+    "original_filename": "대검찰청_아태 사이버범죄 역량강화 허브(APC-HUB) 홈페이지 및 온라인 교.hwp",
+    "source_path": "data/original_data/대검찰청_아태 사이버범죄 역량강화 허브(APC-HUB) 홈페이지 및 온라인 교.hwp",
+    "saved_filename": "대검찰청_아태 사이버범죄 역량강화 허브(APC-HUB) 홈페이지 및 온라인 교__9f12a131cc_parsed.md",
+    "saved_path": "data/parsing_data/대검찰청_아태 사이버범죄 역량강화 허브(APC-HUB) 홈페이지 및 온라인 교__9f12a131cc_parsed.md",
+    "chars": 51792,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "재단법인 한국장애인문화예술원_2024년 장애인문화예술정보시스템 이음.hwp",
+    "source_path": "data/original_data/재단법인 한국장애인문화예술원_2024년 장애인문화예술정보시스템 이음.hwp",
+    "saved_filename": "재단법인 한국장애인문화예술원_2024년 장애인문화예술정보시스템 이음__d5b0ab9d93_parsed.md",
+    "saved_path": "data/parsing_data/재단법인 한국장애인문화예술원_2024년 장애인문화예술정보시스템 이음__d5b0ab9d93_parsed.md",
+    "chars": 46902,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "재단법인스포츠윤리센터_스포츠윤리센터 LMS(학습지원시스템) 기능개선.hwp",
+    "source_path": "data/original_data/재단법인스포츠윤리센터_스포츠윤리센터 LMS(학습지원시스템) 기능개선.hwp",
+    "saved_filename": "재단법인스포츠윤리센터_스포츠윤리센터 LMS(학습지원시스템) 기능개선__05fc98a2cb_parsed.md",
+    "saved_path": "data/parsing_data/재단법인스포츠윤리센터_스포츠윤리센터 LMS(학습지원시스템) 기능개선__05fc98a2cb_parsed.md",
+    "chars": 73459,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국생산기술연구원_2세대 전자조달시스템  기반구축사업.hwp",
+    "source_path": "data/original_data/한국생산기술연구원_2세대 전자조달시스템  기반구축사업.hwp",
+    "saved_filename": "한국생산기술연구원_2세대 전자조달시스템 기반구축사업__60b9cec811_parsed.md",
+    "saved_path": "data/parsing_data/한국생산기술연구원_2세대 전자조달시스템 기반구축사업__60b9cec811_parsed.md",
+    "chars": 68853,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국사회보장정보원_라오스 보건의료정보화 협력을 위한 사전타당성 조.hwp",
+    "source_path": "data/original_data/한국사회보장정보원_라오스 보건의료정보화 협력을 위한 사전타당성 조.hwp",
+    "saved_filename": "한국사회보장정보원_라오스 보건의료정보화 협력을 위한 사전타당성 조__7ff2400d2e_parsed.md",
+    "saved_path": "data/parsing_data/한국사회보장정보원_라오스 보건의료정보화 협력을 위한 사전타당성 조__7ff2400d2e_parsed.md",
+    "chars": 48780,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "서영대학교 산학협력단_전문대학 혁신지원사업 서영대학교 차세대 교육.hwp",
+    "source_path": "data/original_data/서영대학교 산학협력단_전문대학 혁신지원사업 서영대학교 차세대 교육.hwp",
+    "saved_filename": "서영대학교 산학협력단_전문대학 혁신지원사업 서영대학교 차세대 교육__b1cd9994e4_parsed.md",
+    "saved_path": "data/parsing_data/서영대학교 산학협력단_전문대학 혁신지원사업 서영대학교 차세대 교육__b1cd9994e4_parsed.md",
+    "chars": 89973,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "울산광역시_2024년 버스정보시스템 확대 구축 및 기능개선 용역.hwp",
+    "source_path": "data/original_data/울산광역시_2024년 버스정보시스템 확대 구축 및 기능개선 용역.hwp",
+    "saved_filename": "울산광역시_2024년 버스정보시스템 확대 구축 및 기능개선 용역__6886cf0cd5_parsed.md",
+    "saved_path": "data/parsing_data/울산광역시_2024년 버스정보시스템 확대 구축 및 기능개선 용역__6886cf0cd5_parsed.md",
+    "chars": 107198,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국산업단지공단_산단 안전정보시스템 1차 구축 용역.hwp",
+    "source_path": "data/original_data/한국산업단지공단_산단 안전정보시스템 1차 구축 용역.hwp",
+    "saved_filename": "한국산업단지공단_산단 안전정보시스템 1차 구축 용역__da4b3d0598_parsed.md",
+    "saved_path": "data/parsing_data/한국산업단지공단_산단 안전정보시스템 1차 구축 용역__da4b3d0598_parsed.md",
+    "chars": 85851,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국산업인력공단_RFID기반 국가자격 시험 결과물 스마트 관리시스템 도.hwp",
+    "source_path": "data/original_data/한국산업인력공단_RFID기반 국가자격 시험 결과물 스마트 관리시스템 도.hwp",
+    "saved_filename": "한국산업인력공단_RFID기반 국가자격 시험 결과물 스마트 관리시스템 도__28dee8ab75_parsed.md",
+    "saved_path": "data/parsing_data/한국산업인력공단_RFID기반 국가자격 시험 결과물 스마트 관리시스템 도__28dee8ab75_parsed.md",
+    "chars": 48261,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국립중앙의료원_(긴급)「2024년도 차세대 응급의료 상황관리시스템 구축.hwp",
+    "source_path": "data/original_data/국립중앙의료원_(긴급)「2024년도 차세대 응급의료 상황관리시스템 구축.hwp",
+    "saved_filename": "국립중앙의료원_(긴급)「2024년도 차세대 응급의료 상황관리시스템 구축__77d69ca88b_parsed.md",
+    "saved_path": "data/parsing_data/국립중앙의료원_(긴급)「2024년도 차세대 응급의료 상황관리시스템 구축__77d69ca88b_parsed.md",
+    "chars": 88642,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "사단법인 보험개발원_실손보험 청구 전산화 시스템 구축 사업.hwp",
+    "source_path": "data/original_data/사단법인 보험개발원_실손보험 청구 전산화 시스템 구축 사업.hwp",
+    "saved_filename": "사단법인 보험개발원_실손보험 청구 전산화 시스템 구축 사업__1672af2dea_parsed.md",
+    "saved_path": "data/parsing_data/사단법인 보험개발원_실손보험 청구 전산화 시스템 구축 사업__1672af2dea_parsed.md",
+    "chars": 81020,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국수자원공사_수도사업장 통합 사고분석솔루션 시범구축 용역.hwp",
+    "source_path": "data/original_data/한국수자원공사_수도사업장 통합 사고분석솔루션 시범구축 용역.hwp",
+    "saved_filename": "한국수자원공사_수도사업장 통합 사고분석솔루션 시범구축 용역__e73fb835bc_parsed.md",
+    "saved_path": "data/parsing_data/한국수자원공사_수도사업장 통합 사고분석솔루션 시범구축 용역__e73fb835bc_parsed.md",
+    "chars": 55189,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "나노종합기술원_스마트 팹 서비스 활용체계 구축관련 설비온라인 시스.hwp",
+    "source_path": "data/original_data/나노종합기술원_스마트 팹 서비스 활용체계 구축관련 설비온라인 시스.hwp",
+    "saved_filename": "나노종합기술원_스마트 팹 서비스 활용체계 구축관련 설비온라인 시스__19b6a75e9c_parsed.md",
+    "saved_path": "data/parsing_data/나노종합기술원_스마트 팹 서비스 활용체계 구축관련 설비온라인 시스__19b6a75e9c_parsed.md",
+    "chars": 60083,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국한의학연구원_통합정보시스템 고도화 용역.hwp",
+    "source_path": "data/original_data/한국한의학연구원_통합정보시스템 고도화 용역.hwp",
+    "saved_filename": "한국한의학연구원_통합정보시스템 고도화 용역__2b7f6baacd_parsed.md",
+    "saved_path": "data/parsing_data/한국한의학연구원_통합정보시스템 고도화 용역__2b7f6baacd_parsed.md",
+    "chars": 58206,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "인천공항운영서비스(주)_인천공항운영서비스㈜ 차세대 ERP시스템 구축 .hwp",
+    "source_path": "data/original_data/인천공항운영서비스(주)_인천공항운영서비스㈜ 차세대 ERP시스템 구축 .hwp",
+    "saved_filename": "인천공항운영서비스(주)_인천공항운영서비스㈜ 차세대 ERP시스템 구축__b5e5d372e2_parsed.md",
+    "saved_path": "data/parsing_data/인천공항운영서비스(주)_인천공항운영서비스㈜ 차세대 ERP시스템 구축__b5e5d372e2_parsed.md",
+    "chars": 54567,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "인천광역시 동구_수도국산달동네박물관 전시해설 시스템 구축(협상에 .hwp",
+    "source_path": "data/original_data/인천광역시 동구_수도국산달동네박물관 전시해설 시스템 구축(협상에 .hwp",
+    "saved_filename": "인천광역시 동구_수도국산달동네박물관 전시해설 시스템 구축(협상에__10ac4efd77_parsed.md",
+    "saved_path": "data/parsing_data/인천광역시 동구_수도국산달동네박물관 전시해설 시스템 구축(협상에__10ac4efd77_parsed.md",
+    "chars": 66077,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "사단법인아시아물위원회사무국_우즈벡-키르기즈스탄 기후변화대응 스.hwp",
+    "source_path": "data/original_data/사단법인아시아물위원회사무국_우즈벡-키르기즈스탄 기후변화대응 스.hwp",
+    "saved_filename": "사단법인아시아물위원회사무국_우즈벡-키르기즈스탄 기후변화대응 스__3f6e8b8c36_parsed.md",
+    "saved_path": "data/parsing_data/사단법인아시아물위원회사무국_우즈벡-키르기즈스탄 기후변화대응 스__3f6e8b8c36_parsed.md",
+    "chars": 46397,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국지식재산보호원_IP-NAVI  해외지식재산센터 사업관리 시스템 기능개.hwp",
+    "source_path": "data/original_data/한국지식재산보호원_IP-NAVI  해외지식재산센터 사업관리 시스템 기능개.hwp",
+    "saved_filename": "한국지식재산보호원_IP-NAVI 해외지식재산센터 사업관리 시스템 기능개__5fc0502cc1_parsed.md",
+    "saved_path": "data/parsing_data/한국지식재산보호원_IP-NAVI 해외지식재산센터 사업관리 시스템 기능개__5fc0502cc1_parsed.md",
+    "chars": 49937,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "케빈랩 주식회사_평택시 강소형 스마트시티 AI 기반의 영상감시 시스템 .hwp",
+    "source_path": "data/original_data/케빈랩 주식회사_평택시 강소형 스마트시티 AI 기반의 영상감시 시스템 .hwp",
+    "saved_filename": "케빈랩 주식회사_평택시 강소형 스마트시티 AI 기반의 영상감시 시스템__ef994f5068_parsed.md",
+    "saved_path": "data/parsing_data/케빈랩 주식회사_평택시 강소형 스마트시티 AI 기반의 영상감시 시스템__ef994f5068_parsed.md",
+    "chars": 45482,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "전북특별자치도 정읍시_정읍체육트레이닝센터 통합운영관리시스템 구.hwp",
+    "source_path": "data/original_data/전북특별자치도 정읍시_정읍체육트레이닝센터 통합운영관리시스템 구.hwp",
+    "saved_filename": "전북특별자치도 정읍시_정읍체육트레이닝센터 통합운영관리시스템 구__4d2c31d849_parsed.md",
+    "saved_path": "data/parsing_data/전북특별자치도 정읍시_정읍체육트레이닝센터 통합운영관리시스템 구__4d2c31d849_parsed.md",
+    "chars": 96307,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국가스공사_[재공고]차세대 통합정보시스템(ERP) 구축.hwp",
+    "source_path": "data/original_data/한국가스공사_[재공고]차세대 통합정보시스템(ERP) 구축.hwp",
+    "saved_filename": "한국가스공사_[재공고]차세대 통합정보시스템(ERP) 구축__3a265f371a_parsed.md",
+    "saved_path": "data/parsing_data/한국가스공사_[재공고]차세대 통합정보시스템(ERP) 구축__3a265f371a_parsed.md",
+    "chars": 98455,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국농어촌공사_네팔 수자원관리 정보화사업-Pilot 시스템 구축용역.hwp",
+    "source_path": "data/original_data/한국농어촌공사_네팔 수자원관리 정보화사업-Pilot 시스템 구축용역.hwp",
+    "saved_filename": "한국농어촌공사_네팔 수자원관리 정보화사업-Pilot 시스템 구축용역__e69d240e18_parsed.md",
+    "saved_path": "data/parsing_data/한국농어촌공사_네팔 수자원관리 정보화사업-Pilot 시스템 구축용역__e69d240e18_parsed.md",
+    "chars": 74767,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "대한적십자사 의료원_적십자병원 병원정보 재해복구시스템 구축 용역 .hwp",
+    "source_path": "data/original_data/대한적십자사 의료원_적십자병원 병원정보 재해복구시스템 구축 용역 .hwp",
+    "saved_filename": "대한적십자사 의료원_적십자병원 병원정보 재해복구시스템 구축 용역__36f63aed30_parsed.md",
+    "saved_path": "data/parsing_data/대한적십자사 의료원_적십자병원 병원정보 재해복구시스템 구축 용역__36f63aed30_parsed.md",
+    "chars": 47727,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "전북대학교_JST 공유대학(원) xAPI기반 LRS시스템 구축.hwp",
+    "source_path": "data/original_data/전북대학교_JST 공유대학(원) xAPI기반 LRS시스템 구축.hwp",
+    "saved_filename": "전북대학교_JST 공유대학(원) xAPI기반 LRS시스템 구축__be698161db_parsed.md",
+    "saved_path": "data/parsing_data/전북대학교_JST 공유대학(원) xAPI기반 LRS시스템 구축__be698161db_parsed.md",
+    "chars": 70519,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "수협중앙회_강릉어선안전조업국 상황관제시스템 구축.hwp",
+    "source_path": "data/original_data/수협중앙회_강릉어선안전조업국 상황관제시스템 구축.hwp",
+    "saved_filename": "수협중앙회_강릉어선안전조업국 상황관제시스템 구축__b409736225_parsed.md",
+    "saved_path": "data/parsing_data/수협중앙회_강릉어선안전조업국 상황관제시스템 구축__b409736225_parsed.md",
+    "chars": 46646,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국어촌어항공단_한국어촌어항공단 경영관리시스템(ERP·GW) 기능 고도.hwp",
+    "source_path": "data/original_data/한국어촌어항공단_한국어촌어항공단 경영관리시스템(ERP·GW) 기능 고도.hwp",
+    "saved_filename": "한국어촌어항공단_한국어촌어항공단 경영관리시스템(ERP·GW) 기능 고도__634cb49d5d_parsed.md",
+    "saved_path": "data/parsing_data/한국어촌어항공단_한국어촌어항공단 경영관리시스템(ERP·GW) 기능 고도__634cb49d5d_parsed.md",
+    "chars": 79323,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "재단법인 광주연구원_광주정책연구아카이브(GPA) 시스템 개발.hwp",
+    "source_path": "data/original_data/재단법인 광주연구원_광주정책연구아카이브(GPA) 시스템 개발.hwp",
+    "saved_filename": "재단법인 광주연구원_광주정책연구아카이브(GPA) 시스템 개발__42af006f55_parsed.md",
+    "saved_path": "data/parsing_data/재단법인 광주연구원_광주정책연구아카이브(GPA) 시스템 개발__42af006f55_parsed.md",
+    "chars": 67975,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "KOICA 전자조달_[긴급] [지문] [국제] 우즈베키스탄 열린 의정활동 상하원 .hwp",
+    "source_path": "data/original_data/KOICA 전자조달_[긴급] [지문] [국제] 우즈베키스탄 열린 의정활동 상하원 .hwp",
+    "saved_filename": "KOICA 전자조달_[긴급] [지문] [국제] 우즈베키스탄 열린 의정활동 상하원__4f4b2bc96f_parsed.md",
+    "saved_path": "data/parsing_data/KOICA 전자조달_[긴급] [지문] [국제] 우즈베키스탄 열린 의정활동 상하원__4f4b2bc96f_parsed.md",
+    "chars": 126717,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "BioIN_의료기기산업 종합정보시스템(정보관리기관) 기능개선 사업(2차).hwp",
+    "source_path": "data/original_data/BioIN_의료기기산업 종합정보시스템(정보관리기관) 기능개선 사업(2차).hwp",
+    "saved_filename": "BioIN_의료기기산업 종합정보시스템(정보관리기관) 기능개선 사업(2차)__ffbd48accd_parsed.md",
+    "saved_path": "data/parsing_data/BioIN_의료기기산업 종합정보시스템(정보관리기관) 기능개선 사업(2차)__ffbd48accd_parsed.md",
+    "chars": 68809,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "남서울대학교_[혁신-국고] 남서울대학교 스마트 정보시스템 활성화(학사.hwp",
+    "source_path": "data/original_data/남서울대학교_[혁신-국고] 남서울대학교 스마트 정보시스템 활성화(학사.hwp",
+    "saved_filename": "남서울대학교_[혁신-국고] 남서울대학교 스마트 정보시스템 활성화(학사__d1dc014b47_parsed.md",
+    "saved_path": "data/parsing_data/남서울대학교_[혁신-국고] 남서울대학교 스마트 정보시스템 활성화(학사__d1dc014b47_parsed.md",
+    "chars": 58765,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국교육과정평가원_국가교육과정정보센터(NCIC) 시스템 운영 및 개선.hwp",
+    "source_path": "data/original_data/한국교육과정평가원_국가교육과정정보센터(NCIC) 시스템 운영 및 개선.hwp",
+    "saved_filename": "한국교육과정평가원_국가교육과정정보센터(NCIC) 시스템 운영 및 개선__dfa93c276f_parsed.md",
+    "saved_path": "data/parsing_data/한국교육과정평가원_국가교육과정정보센터(NCIC) 시스템 운영 및 개선__dfa93c276f_parsed.md",
+    "chars": 41583,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국민연금공단_사업장 사회보험료 지원 고시 개정에 따른 정보시스템 보.hwp",
+    "source_path": "data/original_data/국민연금공단_사업장 사회보험료 지원 고시 개정에 따른 정보시스템 보.hwp",
+    "saved_filename": "국민연금공단_사업장 사회보험료 지원 고시 개정에 따른 정보시스템 보__f9a0bc2ff3_parsed.md",
+    "saved_path": "data/parsing_data/국민연금공단_사업장 사회보험료 지원 고시 개정에 따른 정보시스템 보__f9a0bc2ff3_parsed.md",
+    "chars": 62396,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "(사）한국대학스포츠협의회_KUSF 체육특기자 경기기록 관리시스템 개발.hwp",
+    "source_path": "data/original_data/(사）한국대학스포츠협의회_KUSF 체육특기자 경기기록 관리시스템 개발.hwp",
+    "saved_filename": "(사）한국대학스포츠협의회_KUSF 체육특기자 경기기록 관리시스템 개발__ff4f59b243_parsed.md",
+    "saved_path": "data/parsing_data/(사）한국대학스포츠협의회_KUSF 체육특기자 경기기록 관리시스템 개발__ff4f59b243_parsed.md",
+    "chars": 72899,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "서민금융진흥원_서민금융진흥원 서민금융 채팅 상담시스템 구축.hwp",
+    "source_path": "data/original_data/서민금융진흥원_서민금융진흥원 서민금융 채팅 상담시스템 구축.hwp",
+    "saved_filename": "서민금융진흥원_서민금융진흥원 서민금융 채팅 상담시스템 구축__449c9b3def_parsed.md",
+    "saved_path": "data/parsing_data/서민금융진흥원_서민금융진흥원 서민금융 채팅 상담시스템 구축__449c9b3def_parsed.md",
+    "chars": 75196,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국연구재단_2024년 대학산학협력활동 실태조사 시스템(UICC) 기능개선.hwp",
+    "source_path": "data/original_data/한국연구재단_2024년 대학산학협력활동 실태조사 시스템(UICC) 기능개선.hwp",
+    "saved_filename": "한국연구재단_2024년 대학산학협력활동 실태조사 시스템(UICC) 기능개선__caae16c4b3_parsed.md",
+    "saved_path": "data/parsing_data/한국연구재단_2024년 대학산학협력활동 실태조사 시스템(UICC) 기능개선__caae16c4b3_parsed.md",
+    "chars": 65576,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국해양조사협회_2024년 항해용 간행물 품질관리 업무보조 시스템 구축.hwp",
+    "source_path": "data/original_data/한국해양조사협회_2024년 항해용 간행물 품질관리 업무보조 시스템 구축.hwp",
+    "saved_filename": "한국해양조사협회_2024년 항해용 간행물 품질관리 업무보조 시스템 구축__6c2ae3b240_parsed.md",
+    "saved_path": "data/parsing_data/한국해양조사협회_2024년 항해용 간행물 품질관리 업무보조 시스템 구축__6c2ae3b240_parsed.md",
+    "chars": 56096,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "축산물품질평가원_꿀 품질평가 전산시스템 기능개선 사업.hwp",
+    "source_path": "data/original_data/축산물품질평가원_꿀 품질평가 전산시스템 기능개선 사업.hwp",
+    "saved_filename": "축산물품질평가원_꿀 품질평가 전산시스템 기능개선 사업__e8d633cdef_parsed.md",
+    "saved_path": "data/parsing_data/축산물품질평가원_꿀 품질평가 전산시스템 기능개선 사업__e8d633cdef_parsed.md",
+    "chars": 70954,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "서울특별시교육청_서울특별시교육청 지능정보화전략계획(ISP) 수립(2차) .hwp",
+    "source_path": "data/original_data/서울특별시교육청_서울특별시교육청 지능정보화전략계획(ISP) 수립(2차) .hwp",
+    "saved_filename": "서울특별시교육청_서울특별시교육청 지능정보화전략계획(ISP) 수립(2차)__30893477d2_parsed.md",
+    "saved_path": "data/parsing_data/서울특별시교육청_서울특별시교육청 지능정보화전략계획(ISP) 수립(2차)__30893477d2_parsed.md",
+    "chars": 58890,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국로봇산업진흥원_한국로봇산업진흥원 사업관리시스템 온라인평가 .hwp",
+    "source_path": "data/original_data/한국로봇산업진흥원_한국로봇산업진흥원 사업관리시스템 온라인평가 .hwp",
+    "saved_filename": "한국로봇산업진흥원_한국로봇산업진흥원 사업관리시스템 온라인평가__c00795ba57_parsed.md",
+    "saved_path": "data/parsing_data/한국로봇산업진흥원_한국로봇산업진흥원 사업관리시스템 온라인평가__c00795ba57_parsed.md",
+    "chars": 48704,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국사학진흥재단_대학재정정보시스템(기본재산 및 기채 사후관리) 고.hwp",
+    "source_path": "data/original_data/한국사학진흥재단_대학재정정보시스템(기본재산 및 기채 사후관리) 고.hwp",
+    "saved_filename": "한국사학진흥재단_대학재정정보시스템(기본재산 및 기채 사후관리) 고__732583c761_parsed.md",
+    "saved_path": "data/parsing_data/한국사학진흥재단_대학재정정보시스템(기본재산 및 기채 사후관리) 고__732583c761_parsed.md",
+    "chars": 97136,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국철도공사 (용역)_예약발매시스템 개량 ISMP 용역.hwp",
+    "source_path": "data/original_data/한국철도공사 (용역)_예약발매시스템 개량 ISMP 용역.hwp",
+    "saved_filename": "한국철도공사 (용역)_예약발매시스템 개량 ISMP 용역__de2e55f147_parsed.md",
+    "saved_path": "data/parsing_data/한국철도공사 (용역)_예약발매시스템 개량 ISMP 용역__de2e55f147_parsed.md",
+    "chars": 69241,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국수자원공사_건설통합시스템(CMS) 고도화.hwp",
+    "source_path": "data/original_data/한국수자원공사_건설통합시스템(CMS) 고도화.hwp",
+    "saved_filename": "한국수자원공사_건설통합시스템(CMS) 고도화__aa7b7b1569_parsed.md",
+    "saved_path": "data/parsing_data/한국수자원공사_건설통합시스템(CMS) 고도화__aa7b7b1569_parsed.md",
+    "chars": 61130,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국농수산식품유통공사_농산물가격안정기금 정부예산회계연계시스템 .hwp",
+    "source_path": "data/original_data/한국농수산식품유통공사_농산물가격안정기금 정부예산회계연계시스템 .hwp",
+    "saved_filename": "한국농수산식품유통공사_농산물가격안정기금 정부예산회계연계시스템__e281ecb355_parsed.md",
+    "saved_path": "data/parsing_data/한국농수산식품유통공사_농산물가격안정기금 정부예산회계연계시스템__e281ecb355_parsed.md",
+    "chars": 62300,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "광주과학기술원_학사시스템 기능개선 사업.hwp",
+    "source_path": "data/original_data/광주과학기술원_학사시스템 기능개선 사업.hwp",
+    "saved_filename": "광주과학기술원_학사시스템 기능개선 사업__f17763899b_parsed.md",
+    "saved_path": "data/parsing_data/광주과학기술원_학사시스템 기능개선 사업__f17763899b_parsed.md",
+    "chars": 45352,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "을지대학교_을지대학교 비교과시스템 개발.hwp",
+    "source_path": "data/original_data/을지대학교_을지대학교 비교과시스템 개발.hwp",
+    "saved_filename": "을지대학교_을지대학교 비교과시스템 개발__3c2bf2e0f2_parsed.md",
+    "saved_path": "data/parsing_data/을지대학교_을지대학교 비교과시스템 개발__3c2bf2e0f2_parsed.md",
+    "chars": 67635,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국재정정보원_e나라도움 업무시스템 웹 접근성 컨설팅.hwp",
+    "source_path": "data/original_data/한국재정정보원_e나라도움 업무시스템 웹 접근성 컨설팅.hwp",
+    "saved_filename": "한국재정정보원_e나라도움 업무시스템 웹 접근성 컨설팅__740f218e81_parsed.md",
+    "saved_path": "data/parsing_data/한국재정정보원_e나라도움 업무시스템 웹 접근성 컨설팅__740f218e81_parsed.md",
+    "chars": 68360,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "서울특별시 여성가족재단_(재공고, 협상) 서울 디지털성범죄 안심지원센.hwp",
+    "source_path": "data/original_data/서울특별시 여성가족재단_(재공고, 협상) 서울 디지털성범죄 안심지원센.hwp",
+    "saved_filename": "서울특별시 여성가족재단_(재공고, 협상) 서울 디지털성범죄 안심지원센__07f416a85e_parsed.md",
+    "saved_path": "data/parsing_data/서울특별시 여성가족재단_(재공고, 협상) 서울 디지털성범죄 안심지원센__07f416a85e_parsed.md",
+    "chars": 101457,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "재단법인 광주광역시 광주문화재단_2024년 광주문화예술통합플랫폼 시스.hwp",
+    "source_path": "data/original_data/재단법인 광주광역시 광주문화재단_2024년 광주문화예술통합플랫폼 시스.hwp",
+    "saved_filename": "재단법인 광주광역시 광주문화재단_2024년 광주문화예술통합플랫폼 시스__e90d3f66b8_parsed.md",
+    "saved_path": "data/parsing_data/재단법인 광주광역시 광주문화재단_2024년 광주문화예술통합플랫폼 시스__e90d3f66b8_parsed.md",
+    "chars": 62212,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국발명진흥회 입찰공고_2024년 건설기술에 관한 특허·실용신안 활용실.hwp",
+    "source_path": "data/original_data/한국발명진흥회 입찰공고_2024년 건설기술에 관한 특허·실용신안 활용실.hwp",
+    "saved_filename": "한국발명진흥회 입찰공고_2024년 건설기술에 관한 특허·실용신안 활용실__1d64182a1c_parsed.md",
+    "saved_path": "data/parsing_data/한국발명진흥회 입찰공고_2024년 건설기술에 관한 특허·실용신안 활용실__1d64182a1c_parsed.md",
+    "chars": 54510,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "인천광역시_인천일자리플랫폼 정보시스템 구축 ISP 수립용역.hwp",
+    "source_path": "data/original_data/인천광역시_인천일자리플랫폼 정보시스템 구축 ISP 수립용역.hwp",
+    "saved_filename": "인천광역시_인천일자리플랫폼 정보시스템 구축 ISP 수립용역__7d7181af70_parsed.md",
+    "saved_path": "data/parsing_data/인천광역시_인천일자리플랫폼 정보시스템 구축 ISP 수립용역__7d7181af70_parsed.md",
+    "chars": 60124,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국철도공사 (용역)_모바일오피스 시스템 고도화 용역(총체 및 1차).hwp",
+    "source_path": "data/original_data/한국철도공사 (용역)_모바일오피스 시스템 고도화 용역(총체 및 1차).hwp",
+    "saved_filename": "한국철도공사 (용역)_모바일오피스 시스템 고도화 용역(총체 및 1차)__582ea82779_parsed.md",
+    "saved_path": "data/parsing_data/한국철도공사 (용역)_모바일오피스 시스템 고도화 용역(총체 및 1차)__582ea82779_parsed.md",
+    "chars": 127246,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "2025 구미 아시아육상경기선수권대회 조직위원회_2025 구미아시아육상경.hwp",
+    "source_path": "data/original_data/2025 구미 아시아육상경기선수권대회 조직위원회_2025 구미아시아육상경.hwp",
+    "saved_filename": "2025 구미 아시아육상경기선수권대회 조직위원회_2025 구미아시아육상경__6ab1146d7c_parsed.md",
+    "saved_path": "data/parsing_data/2025 구미 아시아육상경기선수권대회 조직위원회_2025 구미아시아육상경__6ab1146d7c_parsed.md",
+    "chars": 45665,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국방과학연구소_대용량 자료전송시스템 고도화.hwp",
+    "source_path": "data/original_data/국방과학연구소_대용량 자료전송시스템 고도화.hwp",
+    "saved_filename": "국방과학연구소_대용량 자료전송시스템 고도화__f57b70f382_parsed.md",
+    "saved_path": "data/parsing_data/국방과학연구소_대용량 자료전송시스템 고도화__f57b70f382_parsed.md",
+    "chars": 54585,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국보건산업진흥원_의료기기산업 종합정보시스템(정보관리기관) 기능.hwp",
+    "source_path": "data/original_data/한국보건산업진흥원_의료기기산업 종합정보시스템(정보관리기관) 기능.hwp",
+    "saved_filename": "한국보건산업진흥원_의료기기산업 종합정보시스템(정보관리기관) 기능__5ec6caabff_parsed.md",
+    "saved_path": "data/parsing_data/한국보건산업진흥원_의료기기산업 종합정보시스템(정보관리기관) 기능__5ec6caabff_parsed.md",
+    "chars": 68809,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "재단법인충북연구원_GIS통계 기반 재난안전데이터 분석ㆍ관리 시스템 구.hwp",
+    "source_path": "data/original_data/재단법인충북연구원_GIS통계 기반 재난안전데이터 분석ㆍ관리 시스템 구.hwp",
+    "saved_filename": "재단법인충북연구원_GIS통계 기반 재난안전데이터 분석ㆍ관리 시스템 구__e1a3d79c5a_parsed.md",
+    "saved_path": "data/parsing_data/재단법인충북연구원_GIS통계 기반 재난안전데이터 분석ㆍ관리 시스템 구__e1a3d79c5a_parsed.md",
+    "chars": 42543,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국민연금공단_2024년 이러닝시스템 운영 용역.hwp",
+    "source_path": "data/original_data/국민연금공단_2024년 이러닝시스템 운영 용역.hwp",
+    "saved_filename": "국민연금공단_2024년 이러닝시스템 운영 용역__471b259002_parsed.md",
+    "saved_path": "data/parsing_data/국민연금공단_2024년 이러닝시스템 운영 용역__471b259002_parsed.md",
+    "chars": 57423,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국보육진흥원_연차별 자율 품질관리 시스템 기능개선.hwp",
+    "source_path": "data/original_data/한국보육진흥원_연차별 자율 품질관리 시스템 기능개선.hwp",
+    "saved_filename": "한국보육진흥원_연차별 자율 품질관리 시스템 기능개선__7c37fbb0d9_parsed.md",
+    "saved_path": "data/parsing_data/한국보육진흥원_연차별 자율 품질관리 시스템 기능개선__7c37fbb0d9_parsed.md",
+    "chars": 61722,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "경기도 평택시_2024년도 평택시 버스정보시스템(BIS) 구축사업.hwp",
+    "source_path": "data/original_data/경기도 평택시_2024년도 평택시 버스정보시스템(BIS) 구축사업.hwp",
+    "saved_filename": "경기도 평택시_2024년도 평택시 버스정보시스템(BIS) 구축사업__239c4d6e2f_parsed.md",
+    "saved_path": "data/parsing_data/경기도 평택시_2024년도 평택시 버스정보시스템(BIS) 구축사업__239c4d6e2f_parsed.md",
+    "chars": 79286,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "문화체육관광부 국립민속박물관_2024년 국립민속박물관 민속아카이브 자.hwp",
+    "source_path": "data/original_data/문화체육관광부 국립민속박물관_2024년 국립민속박물관 민속아카이브 자.hwp",
+    "saved_filename": "문화체육관광부 국립민속박물관_2024년 국립민속박물관 민속아카이브 자__b8c46ba23e_parsed.md",
+    "saved_path": "data/parsing_data/문화체육관광부 국립민속박물관_2024년 국립민속박물관 민속아카이브 자__b8c46ba23e_parsed.md",
+    "chars": 63447,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "그랜드코리아레저(주)_2024년도 GKL  그룹웨어 시스템 구축 용역.hwp",
+    "source_path": "data/original_data/그랜드코리아레저(주)_2024년도 GKL  그룹웨어 시스템 구축 용역.hwp",
+    "saved_filename": "그랜드코리아레저(주)_2024년도 GKL 그룹웨어 시스템 구축 용역__7abf27574b_parsed.md",
+    "saved_path": "data/parsing_data/그랜드코리아레저(주)_2024년도 GKL 그룹웨어 시스템 구축 용역__7abf27574b_parsed.md",
+    "chars": 144866,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "광주과학기술원_실시간통합연구비관리시스템(RCMS)  연계 모듈 변경 사업.hwp",
+    "source_path": "data/original_data/광주과학기술원_실시간통합연구비관리시스템(RCMS)  연계 모듈 변경 사업.hwp",
+    "saved_filename": "광주과학기술원_실시간통합연구비관리시스템(RCMS) 연계 모듈 변경 사업__b15976f4ae_parsed.md",
+    "saved_path": "data/parsing_data/광주과학기술원_실시간통합연구비관리시스템(RCMS) 연계 모듈 변경 사업__b15976f4ae_parsed.md",
+    "chars": 55850,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국전기안전공사_전기안전 관제시스템 보안 모듈 개발 용역.hwp",
+    "source_path": "data/original_data/한국전기안전공사_전기안전 관제시스템 보안 모듈 개발 용역.hwp",
+    "saved_filename": "한국전기안전공사_전기안전 관제시스템 보안 모듈 개발 용역__ef9cc8fe08_parsed.md",
+    "saved_path": "data/parsing_data/한국전기안전공사_전기안전 관제시스템 보안 모듈 개발 용역__ef9cc8fe08_parsed.md",
+    "chars": 46913,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp",
+    "source_path": "data/original_data/(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅.hwp",
+    "saved_filename": "(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅__24c52dd135_parsed.md",
+    "saved_path": "data/parsing_data/(재)예술경영지원센터_통합 정보시스템 구축 사전 컨설팅__24c52dd135_parsed.md",
+    "chars": 41150,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "경기도사회서비스원_2024년 통합사회정보시스템 운영지원.hwp",
+    "source_path": "data/original_data/경기도사회서비스원_2024년 통합사회정보시스템 운영지원.hwp",
+    "saved_filename": "경기도사회서비스원_2024년 통합사회정보시스템 운영지원__62aee4a764_parsed.md",
+    "saved_path": "data/parsing_data/경기도사회서비스원_2024년 통합사회정보시스템 운영지원__62aee4a764_parsed.md",
+    "chars": 68251,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "경상북도 봉화군_봉화군 재난통합관리시스템 고도화 사업(협상)(긴급).hwp",
+    "source_path": "data/original_data/경상북도 봉화군_봉화군 재난통합관리시스템 고도화 사업(협상)(긴급).hwp",
+    "saved_filename": "경상북도 봉화군_봉화군 재난통합관리시스템 고도화 사업(협상)(긴급)__e7af471b20_parsed.md",
+    "saved_path": "data/parsing_data/경상북도 봉화군_봉화군 재난통합관리시스템 고도화 사업(협상)(긴급)__e7af471b20_parsed.md",
+    "chars": 56042,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "축산물품질평가원_축산물이력관리시스템 개선(정보화 사업).hwp",
+    "source_path": "data/original_data/축산물품질평가원_축산물이력관리시스템 개선(정보화 사업).hwp",
+    "saved_filename": "축산물품질평가원_축산물이력관리시스템 개선(정보화 사업)__bb2a4c966f_parsed.md",
+    "saved_path": "data/parsing_data/축산물품질평가원_축산물이력관리시스템 개선(정보화 사업)__bb2a4c966f_parsed.md",
+    "chars": 72678,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "조선대학교_(재공고)2024 조선대학교 SW중심대학 사업관리시스템(WeHub) 구.hwp",
+    "source_path": "data/original_data/조선대학교_(재공고)2024 조선대학교 SW중심대학 사업관리시스템(WeHub) 구.hwp",
+    "saved_filename": "조선대학교_(재공고)2024 조선대학교 SW중심대학 사업관리시스템(WeHub) 구__77ba69c46f_parsed.md",
+    "saved_path": "data/parsing_data/조선대학교_(재공고)2024 조선대학교 SW중심대학 사업관리시스템(WeHub) 구__77ba69c46f_parsed.md",
+    "chars": 44942,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "세종테크노파크_세종테크노파크 인사정보 전산시스템 구축 용역 입찰공.hwp",
+    "source_path": "data/original_data/세종테크노파크_세종테크노파크 인사정보 전산시스템 구축 용역 입찰공.hwp",
+    "saved_filename": "세종테크노파크_세종테크노파크 인사정보 전산시스템 구축 용역 입찰공__0dc9db2c42_parsed.md",
+    "saved_path": "data/parsing_data/세종테크노파크_세종테크노파크 인사정보 전산시스템 구축 용역 입찰공__0dc9db2c42_parsed.md",
+    "chars": 66528,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "대한장애인체육회_2025년 전국장애인체육대회 전산 및 시스템, 홈페이지 .hwp",
+    "source_path": "data/original_data/대한장애인체육회_2025년 전국장애인체육대회 전산 및 시스템, 홈페이지 .hwp",
+    "saved_filename": "대한장애인체육회_2025년 전국장애인체육대회 전산 및 시스템, 홈페이지__181e9c3df6_parsed.md",
+    "saved_path": "data/parsing_data/대한장애인체육회_2025년 전국장애인체육대회 전산 및 시스템, 홈페이지__181e9c3df6_parsed.md",
+    "chars": 47772,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업 .hwp",
+    "source_path": "data/original_data/(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업 .hwp",
+    "saved_filename": "(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업__4dad92a31a_parsed.md",
+    "saved_path": "data/parsing_data/(사)벤처기업협회_2024년 벤처확인종합관리시스템 기능 고도화 용역사업__4dad92a31a_parsed.md",
+    "chars": 101420,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "파주도시관광공사_종량제봉투 판매관리 전산시스템 개선사업.hwp",
+    "source_path": "data/original_data/파주도시관광공사_종량제봉투 판매관리 전산시스템 개선사업.hwp",
+    "saved_filename": "파주도시관광공사_종량제봉투 판매관리 전산시스템 개선사업__d9555ad9f7_parsed.md",
+    "saved_path": "data/parsing_data/파주도시관광공사_종량제봉투 판매관리 전산시스템 개선사업__d9555ad9f7_parsed.md",
+    "chars": 80374,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국수자원공사_용인 첨단 시스템반도체 국가산단 용수공급사업 타당성.hwp",
+    "source_path": "data/original_data/한국수자원공사_용인 첨단 시스템반도체 국가산단 용수공급사업 타당성.hwp",
+    "saved_filename": "한국수자원공사_용인 첨단 시스템반도체 국가산단 용수공급사업 타당성__15825a0a75_parsed.md",
+    "saved_path": "data/parsing_data/한국수자원공사_용인 첨단 시스템반도체 국가산단 용수공급사업 타당성__15825a0a75_parsed.md",
+    "chars": 47624,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "부산관광공사_경영정보시스템 기능개선.hwp",
+    "source_path": "data/original_data/부산관광공사_경영정보시스템 기능개선.hwp",
+    "saved_filename": "부산관광공사_경영정보시스템 기능개선__89834ed556_parsed.md",
+    "saved_path": "data/parsing_data/부산관광공사_경영정보시스템 기능개선__89834ed556_parsed.md",
+    "chars": 70818,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "인천광역시_도시계획위원회 통합관리시스템 구축용역.hwp",
+    "source_path": "data/original_data/인천광역시_도시계획위원회 통합관리시스템 구축용역.hwp",
+    "saved_filename": "인천광역시_도시계획위원회 통합관리시스템 구축용역__20e987720b_parsed.md",
+    "saved_path": "data/parsing_data/인천광역시_도시계획위원회 통합관리시스템 구축용역__20e987720b_parsed.md",
+    "chars": 61496,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "재단법인경기도일자리재단_2025년 통합접수시스템 운영.hwp",
+    "source_path": "data/original_data/재단법인경기도일자리재단_2025년 통합접수시스템 운영.hwp",
+    "saved_filename": "재단법인경기도일자리재단_2025년 통합접수시스템 운영__8821661747_parsed.md",
+    "saved_path": "data/parsing_data/재단법인경기도일자리재단_2025년 통합접수시스템 운영__8821661747_parsed.md",
+    "chars": 105000,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국연구재단_2024년 기초학문자료센터 시스템 운영 및 연구성과물 DB구.hwp",
+    "source_path": "data/original_data/한국연구재단_2024년 기초학문자료센터 시스템 운영 및 연구성과물 DB구.hwp",
+    "saved_filename": "한국연구재단_2024년 기초학문자료센터 시스템 운영 및 연구성과물 DB구__26f9694771_parsed.md",
+    "saved_path": "data/parsing_data/한국연구재단_2024년 기초학문자료센터 시스템 운영 및 연구성과물 DB구__26f9694771_parsed.md",
+    "chars": 64159,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국수출입은행_(긴급) 모잠비크 마푸토 지능형교통시스템(ITS) 구축사업.hwp",
+    "source_path": "data/original_data/한국수출입은행_(긴급) 모잠비크 마푸토 지능형교통시스템(ITS) 구축사업.hwp",
+    "saved_filename": "한국수출입은행_(긴급) 모잠비크 마푸토 지능형교통시스템(ITS) 구축사업__d9bcd1b365_parsed.md",
+    "saved_path": "data/parsing_data/한국수출입은행_(긴급) 모잠비크 마푸토 지능형교통시스템(ITS) 구축사업__d9bcd1b365_parsed.md",
+    "chars": 71611,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국가과학기술지식정보서비스_통합정보시스템 고도화 용역.hwp",
+    "source_path": "data/original_data/국가과학기술지식정보서비스_통합정보시스템 고도화 용역.hwp",
+    "saved_filename": "국가과학기술지식정보서비스_통합정보시스템 고도화 용역__b5efb000e3_parsed.md",
+    "saved_path": "data/parsing_data/국가과학기술지식정보서비스_통합정보시스템 고도화 용역__b5efb000e3_parsed.md",
+    "chars": 58206,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "수협중앙회_수협중앙회 수산물사이버직매장 시스템 재구축 ISMP 수립 입.hwp",
+    "source_path": "data/original_data/수협중앙회_수협중앙회 수산물사이버직매장 시스템 재구축 ISMP 수립 입.hwp",
+    "saved_filename": "수협중앙회_수협중앙회 수산물사이버직매장 시스템 재구축 ISMP 수립 입__1bbf00b9ef_parsed.md",
+    "saved_path": "data/parsing_data/수협중앙회_수협중앙회 수산물사이버직매장 시스템 재구축 ISMP 수립 입__1bbf00b9ef_parsed.md",
+    "chars": 61210,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "고양도시관리공사_관산근린공원 다목적구장 홈페이지 및 회원 통합운영.hwp",
+    "source_path": "data/original_data/고양도시관리공사_관산근린공원 다목적구장 홈페이지 및 회원 통합운영.hwp",
+    "saved_filename": "고양도시관리공사_관산근린공원 다목적구장 홈페이지 및 회원 통합운영__8689343345_parsed.md",
+    "saved_path": "data/parsing_data/고양도시관리공사_관산근린공원 다목적구장 홈페이지 및 회원 통합운영__8689343345_parsed.md",
+    "chars": 70180,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국원자력연구원_한국원자력연구원 선량평가시스템 고도화.hwp",
+    "source_path": "data/original_data/한국원자력연구원_한국원자력연구원 선량평가시스템 고도화.hwp",
+    "saved_filename": "한국원자력연구원_한국원자력연구원 선량평가시스템 고도화__46598b539b_parsed.md",
+    "saved_path": "data/parsing_data/한국원자력연구원_한국원자력연구원 선량평가시스템 고도화__46598b539b_parsed.md",
+    "chars": 42180,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한영대학_한영대학교 특성화 맞춤형 교육환경 구축 - 트랙운영 학사정보.hwp",
+    "source_path": "data/original_data/한영대학_한영대학교 특성화 맞춤형 교육환경 구축 - 트랙운영 학사정보.hwp",
+    "saved_filename": "한영대학_한영대학교 특성화 맞춤형 교육환경 구축 - 트랙운영 학사정보__166494bc71_parsed.md",
+    "saved_path": "data/parsing_data/한영대학_한영대학교 특성화 맞춤형 교육환경 구축 - 트랙운영 학사정보__166494bc71_parsed.md",
+    "chars": 41492,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국립인천해양박물관_국립인천해양박물관 해양자료관리시스템 구축 용.hwp",
+    "source_path": "data/original_data/국립인천해양박물관_국립인천해양박물관 해양자료관리시스템 구축 용.hwp",
+    "saved_filename": "국립인천해양박물관_국립인천해양박물관 해양자료관리시스템 구축 용__d449e67801_parsed.md",
+    "saved_path": "data/parsing_data/국립인천해양박물관_국립인천해양박물관 해양자료관리시스템 구축 용__d449e67801_parsed.md",
+    "chars": 59128,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국방과학연구소_기록관리시스템 통합 활용 및 보안 환경 구축.hwp",
+    "source_path": "data/original_data/국방과학연구소_기록관리시스템 통합 활용 및 보안 환경 구축.hwp",
+    "saved_filename": "국방과학연구소_기록관리시스템 통합 활용 및 보안 환경 구축__108f84fd56_parsed.md",
+    "saved_path": "data/parsing_data/국방과학연구소_기록관리시스템 통합 활용 및 보안 환경 구축__108f84fd56_parsed.md",
+    "chars": 53849,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국수자원조사기술원_수문자료정보관리시스템(HDIMS) 재구축 용역(3단계.hwp",
+    "source_path": "data/original_data/한국수자원조사기술원_수문자료정보관리시스템(HDIMS) 재구축 용역(3단계.hwp",
+    "saved_filename": "한국수자원조사기술원_수문자료정보관리시스템(HDIMS) 재구축 용역(3단계__5f8131997d_parsed.md",
+    "saved_path": "data/parsing_data/한국수자원조사기술원_수문자료정보관리시스템(HDIMS) 재구축 용역(3단계__5f8131997d_parsed.md",
+    "chars": 70578,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국생산기술연구원_EIP3.0 고압가스 안전관리 시스템 구축 용역.hwp",
+    "source_path": "data/original_data/한국생산기술연구원_EIP3.0 고압가스 안전관리 시스템 구축 용역.hwp",
+    "saved_filename": "한국생산기술연구원_EIP3.0 고압가스 안전관리 시스템 구축 용역__f653a1aa4c_parsed.md",
+    "saved_path": "data/parsing_data/한국생산기술연구원_EIP3.0 고압가스 안전관리 시스템 구축 용역__f653a1aa4c_parsed.md",
+    "chars": 95622,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "경기도 안양시_호계체육관 배드민턴장 및 탁구장 예약시스템 구축 용역.hwp",
+    "source_path": "data/original_data/경기도 안양시_호계체육관 배드민턴장 및 탁구장 예약시스템 구축 용역.hwp",
+    "saved_filename": "경기도 안양시_호계체육관 배드민턴장 및 탁구장 예약시스템 구축 용역__12b13c4901_parsed.md",
+    "saved_path": "data/parsing_data/경기도 안양시_호계체육관 배드민턴장 및 탁구장 예약시스템 구축 용역__12b13c4901_parsed.md",
+    "chars": 61661,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp",
+    "source_path": "data/original_data/(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시.hwp",
+    "saved_filename": "(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시__d9e0aa81c1_parsed.md",
+    "saved_path": "data/parsing_data/(사)부산국제영화제_2024년 BIFF & ACFM 온라인서비스 재개발 및 행사지원시__d9e0aa81c1_parsed.md",
+    "chars": 50315,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국철도공사 (용역)_[재공고][긴급][협상형]운행정보기록 자동분석시스.hwp",
+    "source_path": "data/original_data/한국철도공사 (용역)_[재공고][긴급][협상형]운행정보기록 자동분석시스.hwp",
+    "saved_filename": "한국철도공사 (용역)_[재공고][긴급][협상형]운행정보기록 자동분석시스__19d1117c0d_parsed.md",
+    "saved_path": "data/parsing_data/한국철도공사 (용역)_[재공고][긴급][협상형]운행정보기록 자동분석시스__19d1117c0d_parsed.md",
+    "chars": 104449,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국농어촌공사_아세안+3 식량안보정보시스템(AFSIS) 3단계 협력(캄보디아.hwp",
+    "source_path": "data/original_data/한국농어촌공사_아세안+3 식량안보정보시스템(AFSIS) 3단계 협력(캄보디아.hwp",
+    "saved_filename": "한국농어촌공사_아세안+3 식량안보정보시스템(AFSIS) 3단계 협력(캄보디아__3de2c3e55c_parsed.md",
+    "saved_path": "data/parsing_data/한국농어촌공사_아세안+3 식량안보정보시스템(AFSIS) 3단계 협력(캄보디아__3de2c3e55c_parsed.md",
+    "chars": 103392,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "한국건강가정진흥원_2025년 아이돌봄인력 인적성 검사 정보시스템 운영.hwp",
+    "source_path": "data/original_data/한국건강가정진흥원_2025년 아이돌봄인력 인적성 검사 정보시스템 운영.hwp",
+    "saved_filename": "한국건강가정진흥원_2025년 아이돌봄인력 인적성 검사 정보시스템 운영__4d067db664_parsed.md",
+    "saved_path": "data/parsing_data/한국건강가정진흥원_2025년 아이돌봄인력 인적성 검사 정보시스템 운영__4d067db664_parsed.md",
+    "chars": 61245,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "대전대학교_대전대학교 2024학년도 다층적 융합 학습경험 플랫폼(MILE) 전.hwp",
+    "source_path": "data/original_data/대전대학교_대전대학교 2024학년도 다층적 융합 학습경험 플랫폼(MILE) 전.hwp",
+    "saved_filename": "대전대학교_대전대학교 2024학년도 다층적 융합 학습경험 플랫폼(MILE) 전__76fe249a43_parsed.md",
+    "saved_path": "data/parsing_data/대전대학교_대전대학교 2024학년도 다층적 융합 학습경험 플랫폼(MILE) 전__76fe249a43_parsed.md",
+    "chars": 57528,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "경희대학교_[입찰공고] 산학협력단 정보시스템 운영 용역업체 선정.hwp",
+    "source_path": "data/original_data/경희대학교_[입찰공고] 산학협력단 정보시스템 운영 용역업체 선정.hwp",
+    "saved_filename": "경희대학교_[입찰공고] 산학협력단 정보시스템 운영 용역업체 선정__ea1126d845_parsed.md",
+    "saved_path": "data/parsing_data/경희대학교_[입찰공고] 산학협력단 정보시스템 운영 용역업체 선정__ea1126d845_parsed.md",
+    "chars": 43423,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "중앙선거관리위원회_2025년도 행정정보시스템 위탁운영사업.hwp",
+    "source_path": "data/original_data/중앙선거관리위원회_2025년도 행정정보시스템 위탁운영사업.hwp",
+    "saved_filename": "중앙선거관리위원회_2025년도 행정정보시스템 위탁운영사업__0187a833ec_parsed.md",
+    "saved_path": "data/parsing_data/중앙선거관리위원회_2025년도 행정정보시스템 위탁운영사업__0187a833ec_parsed.md",
+    "chars": 78037,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "대한상공회의소_기업 재생에너지 지원센터 홈페이지 개편 및 시스템 고.hwp",
+    "source_path": "data/original_data/대한상공회의소_기업 재생에너지 지원센터 홈페이지 개편 및 시스템 고.hwp",
+    "saved_filename": "대한상공회의소_기업 재생에너지 지원센터 홈페이지 개편 및 시스템 고__a280f1d5c0_parsed.md",
+    "saved_path": "data/parsing_data/대한상공회의소_기업 재생에너지 지원센터 홈페이지 개편 및 시스템 고__a280f1d5c0_parsed.md",
+    "chars": 51930,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "국가철도공단_철도인프라 디지털트윈 정보화전략계획(ISP) 수립 용역(변.hwp",
+    "source_path": "data/original_data/국가철도공단_철도인프라 디지털트윈 정보화전략계획(ISP) 수립 용역(변.hwp",
+    "saved_filename": "국가철도공단_철도인프라 디지털트윈 정보화전략계획(ISP) 수립 용역(변__30d77238ed_parsed.md",
+    "saved_path": "data/parsing_data/국가철도공단_철도인프라 디지털트윈 정보화전략계획(ISP) 수립 용역(변__30d77238ed_parsed.md",
+    "chars": 52301,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "서울특별시_2024년 지도정보 플랫폼 및 전문활용 연계 시스템 고도화 용.pdf",
+    "source_path": "data/original_data/서울특별시_2024년 지도정보 플랫폼 및 전문활용 연계 시스템 고도화 용.pdf",
+    "saved_filename": "서울특별시_2024년 지도정보 플랫폼 및 전문활용 연계 시스템 고도화 용__adf74c8687_parsed.md",
+    "saved_path": "data/parsing_data/서울특별시_2024년 지도정보 플랫폼 및 전문활용 연계 시스템 고도화 용__adf74c8687_parsed.md",
+    "chars": 116005,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "기초과학연구원_2025년도 중이온가속기용 극저온시스템 운전 용역.pdf",
+    "source_path": "data/original_data/기초과학연구원_2025년도 중이온가속기용 극저온시스템 운전 용역.pdf",
+    "saved_filename": "기초과학연구원_2025년도 중이온가속기용 극저온시스템 운전 용역__33a7bd9d77_parsed.md",
+    "saved_path": "data/parsing_data/기초과학연구원_2025년도 중이온가속기용 극저온시스템 운전 용역__33a7bd9d77_parsed.md",
+    "chars": 46144,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "고려대학교_차세대 포털·학사 정보시스템 구축사업.pdf",
+    "source_path": "data/original_data/고려대학교_차세대 포털·학사 정보시스템 구축사업.pdf",
+    "saved_filename": "고려대학교_차세대 포털·학사 정보시스템 구축사업__872ec563d3_parsed.md",
+    "saved_path": "data/parsing_data/고려대학교_차세대 포털·학사 정보시스템 구축사업__872ec563d3_parsed.md",
+    "chars": 210381,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "서울시립대학교_[사전공개] 학업성취도 다차원 종단분석 통합시스템 1차.pdf",
+    "source_path": "data/original_data/서울시립대학교_[사전공개] 학업성취도 다차원 종단분석 통합시스템 1차.pdf",
+    "saved_filename": "서울시립대학교_[사전공개] 학업성취도 다차원 종단분석 통합시스템 1차__4cc978053c_parsed.md",
+    "saved_path": "data/parsing_data/서울시립대학교_[사전공개] 학업성취도 다차원 종단분석 통합시스템 1차__4cc978053c_parsed.md",
+    "chars": 112209,
+    "vlm_used": true
+  },
+  {
+    "original_filename": "고려대학교_차세대 포털·학사 정보시스템 구축사업.docx",
+    "source_path": "data/original_data/고려대학교_차세대 포털·학사 정보시스템 구축사업.docx",
+    "saved_filename": "고려대학교_차세대 포털·학사 정보시스템 구축사업__872ec563d3_parsed.md",
+    "saved_path": "data/parsing_data/고려대학교_차세대 포털·학사 정보시스템 구축사업__872ec563d3_parsed.md",
+    "chars": 15869,
+    "vlm_used": true
+  }
+]
