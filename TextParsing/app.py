@@ -24,6 +24,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 # tts 고유 모듈
 from tts_worker import TTSWorker
 from memory_store import SessionMemoryStore
+
 # 전역 TTS 워커: 새 질문이 들어오면 이전 재생을 즉시 중단한다.
 _TTS_WORKER: TTSWorker | None = None
 
@@ -373,6 +374,11 @@ def _select_audio_player(preferred: str | None = None) -> list[str] | None:
         if not path:
             return None
         return [path, "-autoexit", "-nodisp", "-loglevel", "error"]
+    if preferred in {"mpv"}:
+        path = shutil.which(preferred)
+        if not path:
+            return None
+        return [path, "--ao=pulse", "--no-video", "--quiet", "--keep-open=no"]
     for candidate in ("ffplay",):
         path = shutil.which(candidate)
         if not path:
@@ -426,7 +432,7 @@ if query := st.chat_input("질문을 입력하세요..."):
             source_docs = []
 
             try:
-                player_cmd = _select_audio_player("ffplay")
+                player_cmd = _select_audio_player("mpv")
 
                 full_response = ""
                 source_documents = []
