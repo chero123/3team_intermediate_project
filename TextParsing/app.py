@@ -8,6 +8,8 @@ import uuid
 import sys
 import os
 import time
+from dotenv import load_dotenv  #  추가 env 로드
+load_dotenv() #환경변수 로드 
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.retrievers import BM25Retriever
@@ -22,7 +24,6 @@ from langchain_core.messages import HumanMessage, AIMessage
 # tts 고유 모듈
 from tts_worker import TTSWorker
 from memory_store import SessionMemoryStore
-
 # 전역 TTS 워커: 새 질문이 들어오면 이전 재생을 즉시 중단한다.
 _TTS_WORKER: TTSWorker | None = None
 
@@ -32,6 +33,15 @@ _TTS_WORKER: TTSWorker | None = None
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+#파일이 같은 폴더에 없을 경우를 대비해 경로 명시 지정
+env_path = os.path.join(PROJECT_ROOT, ".env")
+load_dotenv(env_path)
+
+if os.getenv("OPENAI_API_KEY"):
+    print("✅ .env 파일로부터 API Key를 성공적으로 로드했습니다.")
+else:
+    print("⚠️ .env 파일을 찾지 못했거나 키가 설정되지 않았습니다.")
+    
 DB_PATH = os.path.join(PROJECT_ROOT, "data", "chroma_db")
 # 대화 이력 SQLite 경로
 CHAT_DB_PATH = os.path.join(PROJECT_ROOT, "data", "chat_log.sqlite")
