@@ -363,6 +363,11 @@ def _select_audio_player(preferred: str | None = None) -> list[str] | None:
         if not path:
             return None
         return [path, "-autoexit", "-nodisp", "-loglevel", "error"]
+    if preferred in {"mpv"}:
+        path = shutil.which(preferred)
+        if not path:
+            return None
+        return [path, "--ao=pulse", "--no-video", "--quiet", "--keep-open=no"]
     for candidate in ("ffplay",):
         path = shutil.which(candidate)
         if not path:
@@ -416,7 +421,7 @@ if query := st.chat_input("질문을 입력하세요..."):
             source_docs = []
 
             try:
-                player_cmd = _select_audio_player("ffplay")
+                player_cmd = _select_audio_player("mpv")
 
                 full_response = ""
                 source_documents = []
