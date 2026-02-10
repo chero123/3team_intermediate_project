@@ -278,26 +278,6 @@ def load_rag_chain(model_name, dense_w, sparse_w):
 # ==========================================
 # 4. TTS 유틸리티 함수
 # ==========================================
-def _split_sentences(text: str) -> list[str]:
-    # 문장 경계를 기준으로 자른 뒤 구두점을 유지한다.
-    protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", text)
-    parts = re.split(r"([.!?。！？]+)", protected)
-    sentences: list[str] = []
-    buf = ""
-    for part in parts:
-        if not part:
-            continue
-        buf += part
-        if re.fullmatch(r"[.!?。！？]+", part):
-            restored = buf.strip().replace("<DOT>", ".")
-            if restored:
-                sentences.append(restored)
-            buf = ""
-    if buf.strip():
-        sentences.append(buf.strip().replace("<DOT>", "."))
-    return sentences
-
-
 def split_sentences_buffered(buffer: str) -> tuple[list[str], str]:
     # 소수점 보호
     protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", buffer)
@@ -332,6 +312,14 @@ def split_sentences_buffered(buffer: str) -> tuple[list[str], str]:
 
     remainder = "".join(buf).replace("<DOT>", ".").strip()
     return [s for s in sentences if s], remainder
+
+
+def _split_sentences_for_tts(text: str) -> list[str]:
+    # buffered splitter를 단발 입력에 맞게 래핑한다.
+    sentences, remainder = split_sentences_buffered(text)
+    if remainder:
+        sentences.append(remainder)
+    return sentences
 
 
 def _is_junk_line(line: str) -> bool:
@@ -448,7 +436,7 @@ if query := st.chat_input("질문을 입력하세요..."):
                     device="cpu",
                     player_cmd=player_cmd,
                     sanitize_fn=_sanitize_answer,
-                    split_fn=_split_sentences,
+                    split_fn=_split_sentences_for_tts,
                 )
                 tts_worker.start()
                 _TTS_WORKER = tts_worker
@@ -468,9 +456,11 @@ if query := st.chat_input("질문을 입력하세요..."):
                         source_docs = chunk["context"]
                 
                 if tts_buffer.strip():
-                    sentences = _split_sentences(tts_buffer.strip())
+                    sentences, remainder = split_sentences_buffered(tts_buffer.strip())
                     for sent in sentences:
                         tts_worker.enqueue(sent)
+                    if remainder:
+                        tts_worker.enqueue(remainder)
 
                 tts_worker.close()
                 last_path = tts_worker.last_path()

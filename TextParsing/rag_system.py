@@ -19,6 +19,8 @@ from langchain_core.documents import Document
 
 # tts 모듈
 from tts_worker import TTSWorker
+
+# sql 저장소 모듈
 from memory_store import SessionMemoryStore
 
 # ==========================================
@@ -35,9 +37,9 @@ CHAT_DB_PATH = os.path.join(PROJECT_ROOT, "data", "chat_log.sqlite")
 TTS_MODEL_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "melo_yae.onnx"
 TTS_BERT_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "bert_kor.onnx"
 TTS_CONFIG_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "config.json"
-
 # SQLite 저장소
 CHAT_STORE = SessionMemoryStore(CHAT_DB_PATH)
+# OpenAI API 키 설정
 if "OPENAI_API_KEY" not in os.environ:
     os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key를 입력하세요: ")
 
@@ -201,26 +203,6 @@ rag_chain = setup_and_retrieval.assign(
 # 4. TTS 보조 함수
 # ==========================================
 
-def _split_sentences(text: str) -> list[str]:
-    # 문장 경계를 기준으로 자른 뒤 구두점을 유지한다.
-    protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", text)
-    parts = re.split(r"([.!?。！？]+)", protected)
-    sentences: list[str] = []
-    buf = ""
-    for part in parts:
-        if not part:
-            continue
-        buf += part
-        if re.fullmatch(r"[.!?。！？]+", part):
-            restored = buf.strip().replace("<DOT>", ".")
-            if restored:
-                sentences.append(restored)
-            buf = ""
-    if buf.strip():
-        sentences.append(buf.strip().replace("<DOT>", "."))
-    return sentences
-
-
 def split_sentences_buffered(buffer: str) -> tuple[list[str], str]:
     # 소수점 보호
     protected = re.sub(r"(?<=\d)\.(?=\d)", "<DOT>", buffer)
@@ -255,6 +237,14 @@ def split_sentences_buffered(buffer: str) -> tuple[list[str], str]:
 
     remainder = "".join(buf).replace("<DOT>", ".").strip()
     return [s for s in sentences if s], remainder
+
+
+def _split_sentences_for_tts(text: str) -> list[str]:
+    # buffered splitter를 단발 입력에 맞게 래핑한다.
+    sentences, remainder = split_sentences_buffered(text)
+    if remainder:
+        sentences.append(remainder)
+    return sentences
 
 
 def _is_junk_line(line: str) -> bool:
@@ -346,7 +336,7 @@ while True:
             device="cpu",
             player_cmd=player_cmd,
             sanitize_fn=_sanitize_answer,
-            split_fn=_split_sentences,
+            split_fn=_split_sentences_for_tts,
         )
         tts_worker.start()
         _TTS_WORKER = tts_worker
@@ -367,9 +357,11 @@ while True:
                 source_documents = chunk["context"]
 
         if tts_buffer.strip():
-            sentences = _split_sentences(tts_buffer.strip())
+            sentences, remainder = split_sentences_buffered(tts_buffer.strip())
             for sent in sentences:
                 tts_worker.enqueue(sent)
+            if remainder:
+                tts_worker.enqueue(remainder)
 
         tts_worker.close()
 
