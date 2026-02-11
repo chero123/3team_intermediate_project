@@ -1,392 +1,178 @@
-# create_vectordb.py
-# ============================================================
-# final_docs/*.md 를 전부(또는 CSV와 매칭되는 것만) 불러와서
-# - (선택) CSV 메타데이터를 각 청크 헤더로 주입
-# - MD의 <!-- page: N --> / <!-- tables: start/end page N --> 구조를 최대한 보존
-# - ✅ 페이지 번호(page)를 metadata에 저장
-# - OpenAI Embedding -> ChromaDB(persist) 구축
-#
-# ✅ OPENAI_API_KEY는 .env에서 로드 (getpass 입력 없음)
-#   - 프로젝트 루트(=PROJECT_ROOT)에 .env 두는 걸 권장
-#   - 예: PROJECT_ROOT/.env  안에  OPENAI_API_KEY=sk-...
-# ============================================================
-
 import os
 import sys
-import glob
-import re
 import shutil
-import unicodedata
-from typing import Dict, List, Optional, Tuple
-
+import json
+import getpass
 import pandas as pd
+import unicodedata
 from tqdm import tqdm
-from dotenv import load_dotenv
-
+from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 
-
-# =========================
-# 0) 경로/환경변수(.env) 로드
-# =========================
+# ==========================================
+# 1. 경로 및 API 설정
+# ==========================================
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
 
-# .env 로드 (프로젝트 루트 우선, 없으면 현재 폴더도 시도)
-load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
-load_dotenv(os.path.join(CURRENT_DIR, ".env"))
+# [경로 설정]
+PARSING_DATA_DIR = os.path.join(PROJECT_ROOT, "data", "parsing_data")
+MAPPING_FILE = os.path.join(PARSING_DATA_DIR, "parsed_mapping.json")
+CSV_FILE_PATH = os.path.join(PROJECT_ROOT, "data", "data_list.csv")
+DB_PATH = os.path.join(PROJECT_ROOT, "data", "chroma_db")
 
-# ✅ MD 폴더 / CSV / DB 경로
-FINAL_DOCS_DIR = os.path.join(PROJECT_ROOT, "final_docs")                 # ✅ MD 폴더
-CSV_FILE_PATH  = os.path.join(PROJECT_ROOT, "data", "data_list.csv")      # ✅ 메타데이터(선택)
-DB_PATH        = os.path.join(PROJECT_ROOT, "data", "chroma_db")          # ✅ 저장 위치
+print(f"CSV 위치: {CSV_FILE_PATH}")
+print(f"매핑 파일: {MAPPING_FILE}")
 
-# ✅ 동작 옵션
-USE_CSV_METADATA = True   # True: CSV와 매칭되는 문서만 + 헤더주입 / False: final_docs MD 전부 인덱싱
-REBUILD_DB = True         # True: 기존 DB 삭제 후 재생성
+# API 키 확인
+if "OPENAI_API_KEY" not in os.environ:
+    os.environ["OPENAI_API_KEY"] = getpass.getpass("OpenAI API Key를 입력하세요: ")
 
-COLLECTION_NAME = "bid_rfp_collection"
-EMBED_MODEL = "text-embedding-3-small"
+# ==========================================
+# 2. 데이터 로드 및 매핑 사전 준비
+# ==========================================
+print("\n데이터 로딩 및 매핑 준비 중...")
 
-# 청킹 파라미터
-CHUNK_SIZE = 900
-CHUNK_OVERLAP = 120
+# 1) 매핑 파일 로드
+if not os.path.exists(MAPPING_FILE):
+    print("매핑 파일이 없습니다. text_parsing.py를 먼저 실행하세요.")
+    sys.exit()
 
-print(f"[INFO] PROJECT_ROOT     = {PROJECT_ROOT}")
-print(f"[INFO] FINAL_DOCS_DIR   = {FINAL_DOCS_DIR}")
-print(f"[INFO] CSV_FILE_PATH    = {CSV_FILE_PATH} (USE_CSV_METADATA={USE_CSV_METADATA})")
-print(f"[INFO] DB_PATH          = {DB_PATH}")
-print(f"[INFO] COLLECTION_NAME  = {COLLECTION_NAME}")
-print(f"[INFO] EMBED_MODEL      = {EMBED_MODEL}")
+with open(MAPPING_FILE, "r", encoding="utf-8") as f:
+    mapping_data = json.load(f)
 
-# ✅ API KEY 체크 (.env 기반)
-if not os.environ.get("OPENAI_API_KEY"):
-    print("[ERROR] OPENAI_API_KEY가 설정되어 있지 않습니다.")
-    print(" - PROJECT_ROOT/.env 또는 CURRENT_DIR/.env에 아래처럼 추가하세요:")
-    print("   OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx")
-    sys.exit(1)
+# 파일명 정규화 (NFC)
+file_map = {}
+for item in mapping_data:
+    norm_name = unicodedata.normalize('NFC', item['original_filename'])
+    file_map[norm_name] = item['saved_path']
 
+# 2) CSV 파일 로드
+if not os.path.exists(CSV_FILE_PATH):
+    print("CSV 파일이 없습니다.")
+    sys.exit()
 
-# =========================
-# 1) 유틸: 파일명 정규화/매칭
-# =========================
-def norm(s: str) -> str:
-    return unicodedata.normalize("NFC", (s or "").strip())
+try:
+    try:
+        df = pd.read_csv(CSV_FILE_PATH, encoding='utf-8')
+    except UnicodeDecodeError:
+        df = pd.read_csv(CSV_FILE_PATH, encoding='cp949')
+    df = df.fillna("") # 빈 값 처리
+    print(f"CSV 데이터 {len(df)}건 로드 완료")
+except Exception as e:
+    print(f"CSV 로드 중 에러: {e}")
+    sys.exit()
 
-def build_md_index(final_docs_dir: str) -> Dict[str, str]:
-    """
-    final_docs 폴더의 모든 md 파일을 key 여러 버전으로 매핑
-    - basename(md)
-    - basename_without_md
-    - lowercase variants
-    - (basename_without_md + ".md") variants
-    """
-    if not os.path.isdir(final_docs_dir):
-        print(f"[ERROR] final_docs 폴더가 없습니다: {final_docs_dir}")
-        sys.exit(1)
+# ==========================================
+# 3. 문서 처리 및 Contextual Chunking
+# ==========================================
+print("\n전체 문서 처리 및 청킹(Contextual Chunking) 시작...")
 
-    md_paths = glob.glob(os.path.join(final_docs_dir, "*.md"))
-    if not md_paths:
-        print(f"[ERROR] final_docs에 md 파일이 없습니다: {final_docs_dir}")
-        sys.exit(1)
-
-    idx: Dict[str, str] = {}
-    for p in md_paths:
-        base = norm(os.path.basename(p))  # ex) "A.pdf.md" or "A.md"
-        base_no_md = norm(re.sub(r"\.md$", "", base, flags=re.IGNORECASE))  # ex) "A.pdf" or "A"
-
-        idx[base] = p
-        idx[base_no_md] = p
-        idx[base.lower()] = p
-        idx[base_no_md.lower()] = p
-        idx[base_no_md + ".md"] = p
-        idx[(base_no_md + ".md").lower()] = p
-
-    return idx
-
-def resolve_md_path(md_index: Dict[str, str], csv_filename: str) -> Optional[str]:
-    """
-    CSV 파일명으로 md 경로를 최대한 유연하게 찾는다.
-    후보:
-    - csv 그대로
-    - csv + ".md"
-    - basename(csv)
-    - basename(csv) + ".md"
-    - 확장자 제거한 이름 / 그 + ".md"
-    """
-    f = norm(csv_filename)
-    if not f:
-        return None
-
-    candidates: List[str] = [f, f + ".md"]
-
-    base = norm(os.path.basename(f))
-    candidates += [base, base + ".md"]
-
-    base_no_ext = re.sub(r"\.[^.]+$", "", base)
-    if base_no_ext and base_no_ext != base:
-        candidates += [base_no_ext, base_no_ext + ".md"]
-
-    candidates += [c.lower() for c in candidates]
-
-    for c in candidates:
-        if c in md_index:
-            return md_index[c]
-    return None
-
-
-# =========================
-# 2) MD 청킹: 표 블록 보존 + 페이지 마커 활용
-# =========================
+# 텍스트 분할기 설정 (헤더 공간 고려하여 800자로 설정)
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=CHUNK_SIZE,
-    chunk_overlap=CHUNK_OVERLAP,
+    chunk_size=800,
+    chunk_overlap=100,
     separators=["\n\n", "\n", ". ", " ", ""],
     length_function=len,
 )
 
-TABLE_BLOCK_RE = re.compile(
-    r"<!--\s*tables:\s*start\s*page\s*\d+\s*-->.*?<!--\s*tables:\s*end\s*page\s*\d+\s*-->",
-    re.DOTALL | re.IGNORECASE
-)
-PAGE_MARKER_RE = re.compile(r"<!--\s*page:\s*(\d+)\s*-->", re.IGNORECASE)
+documents = []
+match_count = 0
 
-def split_md_preserve_tables(md_text: str) -> List[Tuple[Optional[int], str]]:
-    """
-    반환: [(page_no, chunk_text), ...]
-    - 표 블록( tables:start/end )은 통째로 보존
-    - 가능하면 <!-- page: N --> 단위로 먼저 나누고, 각 섹션을 청킹
-    - ✅ 각 청크가 속한 page_no를 같이 반환 (metadata로 저장하기 위함)
-    """
-    tables: List[str] = []
-
-    def _table_repl(m: re.Match) -> str:
-        tables.append(m.group(0))
-        return f"[[[TABLE_BLOCK_{len(tables)-1}]]]"
-
-    protected = TABLE_BLOCK_RE.sub(_table_repl, md_text)
-
-    # PAGE_MARKER_RE.split() 결과: [pre, "9", content, "10", content, ...]
-    tokens = PAGE_MARKER_RE.split(protected)
-
-    sections: List[Tuple[Optional[int], str]] = []
-    pre = tokens[0]
-    if pre.strip():
-        sections.append((None, pre))
-
-    i = 1
-    while i < len(tokens):
-        page_no_str = tokens[i]
-        content = tokens[i + 1] if i + 1 < len(tokens) else ""
-        try:
-            page_no = int(page_no_str)
-        except:
-            page_no = None
-        sections.append((page_no, f"<!-- page: {page_no_str} -->\n{content}".strip()))
-        i += 2
-
-    if not sections:
-        sections = [(None, protected)]
-
-    out: List[Tuple[Optional[int], str]] = []
-    for page_no, sec in sections:
-        sec = sec.strip()
-        if not sec:
-            continue
-
-        raw_chunks = text_splitter.split_text(sec)
-
-        for c in raw_chunks:
-            def _restore(match: re.Match) -> str:
-                idx = int(match.group(1))
-                return tables[idx]
-            restored = re.sub(r"\[\[\[TABLE_BLOCK_(\d+)\]\]\]", _restore, c)
-            out.append((page_no, restored))
-
-    return out
-
-
-# =========================
-# 3) (선택) CSV 로드
-# =========================
-def load_csv(csv_path: str) -> pd.DataFrame:
-    if not os.path.exists(csv_path):
-        print(f"[ERROR] CSV가 없습니다: {csv_path}")
-        sys.exit(1)
+# CSV 기준으로 루프
+for idx, row in tqdm(df.iterrows(), total=len(df)):
+    
+    # 1. 파일명 매칭
+    csv_filename = str(row.get('파일명', ''))
+    if not csv_filename: continue
+    
+    norm_csv_filename = unicodedata.normalize('NFC', csv_filename)
+    if norm_csv_filename not in file_map: continue
+    
+    txt_file_path = file_map[norm_csv_filename]
+    if not os.path.exists(txt_file_path): continue
 
     try:
-        try:
-            df = pd.read_csv(csv_path, encoding="utf-8")
-        except UnicodeDecodeError:
-            df = pd.read_csv(csv_path, encoding="cp949")
-        return df.fillna("")
-    except Exception as e:
-        print(f"[ERROR] CSV 로드 실패: {e}")
-        sys.exit(1)
+        with open(txt_file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except: continue
 
-def build_header_from_row(row: pd.Series, source_name: str) -> Tuple[str, Dict]:
-    notice_no = str(row.get("공고 번호", "")) or str(row.get("공고번호", ""))
-    title     = str(row.get("사업명", "")) or str(row.get("공고명", ""))
-    agency    = str(row.get("발주 기관", "")) or str(row.get("발주기관", ""))
-    budget    = str(row.get("사업 금액", "0")) or str(row.get("사업금액", "0"))
-    deadline  = str(row.get("입찰 참여 마감일", "정보없음")) or str(row.get("마감일", "정보없음"))
-    summary   = str(row.get("사업 요약", "")) or str(row.get("요약", ""))
+    if not content or len(content) < 50: continue
 
+    # 2. 메타데이터 추출
+    
+    notice_no = str(row.get('공고 번호', ''))
+    title = str(row.get('사업명', ''))
+    agency = str(row.get('발주 기관', ''))
+    budget = str(row.get('사업 금액', '0'))
+    deadline = str(row.get('입찰 참여 마감일', '정보없음'))
+    summary = str(row.get('사업 요약', ''))
+
+    # 금액 포맷팅 (130000000.0 -> 130,000,000)
     try:
         budget_fmt = f"{int(float(budget)):,}"
     except:
         budget_fmt = budget
 
-    header = f"""<문서 정보>
+    # 3. 모든 청크에 붙일 헤더 템플릿
+    header_template = f"""<문서 정보>
 공고번호: {notice_no}
 사업명: {title}
 발주기관: {agency}
 사업금액: {budget_fmt}원
 입찰마감: {deadline}
 핵심요약: {summary[:100]}...
-원본문서: {source_name}
 </문서 정보>
 
 """
-    metadata = {
-        "source": source_name,
-        "notice_no": notice_no,
-        "title": title,
-        "agency": agency,
-        "budget": budget_fmt,
-        "deadline": deadline,
-    }
-    return header, metadata
+    # 4. 원본 텍스트 분할 (Splitting)
+    raw_chunks = text_splitter.split_text(content)
 
+    # 5. 헤더 붙이기 (Injection)
+    for chunk_text in raw_chunks:
+        enriched_chunk_text = header_template + chunk_text
+        
+        # 메타데이터 저장 (나중에 필터링할 때 유용)
+        metadata = {
+            "source": csv_filename,
+            "notice_no": notice_no,
+            "title": title,
+            "agency": agency,
+            "budget": budget_fmt,
+            "deadline": deadline
+        }
+        
+        doc = Document(page_content=enriched_chunk_text, metadata=metadata)
+        documents.append(doc)
+        
+    match_count += 1
 
-# =========================
-# 4) 문서 로딩 -> 청킹 -> Document 생성
-# =========================
-md_index = build_md_index(FINAL_DOCS_DIR)
+print(f"\n처리 완료: 총 {match_count}개의 파일에서 -> {len(documents)}개의 '헤더 포함' 청크 생성됨.")
 
-documents: List[Document] = []
-match_count = 0
-skipped_count = 0
-page_meta_count = 0  # ✅ page 메타데이터가 들어간 청크 수(확인용)
+if match_count == 0:
+    print("[주의] 매칭된 문서가 0개입니다. CSV 파일명과 파싱된 파일명을 확인하세요.")
+    sys.exit()
 
-if USE_CSV_METADATA:
-    df = load_csv(CSV_FILE_PATH)
-    print(f"[INFO] CSV rows = {len(df)}")
-
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="CSV→MD 매칭/청킹"):
-        csv_filename = str(row.get("파일명", "")).strip()
-        if not csv_filename:
-            skipped_count += 1
-            continue
-
-        md_path = resolve_md_path(md_index, csv_filename)
-        if not md_path or not os.path.exists(md_path):
-            skipped_count += 1
-            continue
-
-        try:
-            with open(md_path, "r", encoding="utf-8") as f:
-                content = f.read()
-        except:
-            skipped_count += 1
-            continue
-
-        if not content or len(content) < 50:
-            skipped_count += 1
-            continue
-
-        header, base_meta = build_header_from_row(row, source_name=csv_filename)
-
-        # ✅ (page_no, chunk_text) 목록
-        chunks = split_md_preserve_tables(content)
-
-        for page_no, chunk_text in chunks:
-            page_content = header + chunk_text
-
-            meta = dict(base_meta)
-            meta["source_md_path"] = md_path
-
-            # ✅ page 메타데이터 추가 (원본 MD의 <!-- page: N --> 기준)
-            # - 1부터 시작하는 원본 페이지 번호를 그대로 저장
-            if page_no is not None:
-                meta["page"] = page_no
-                page_meta_count += 1
-
-            documents.append(Document(page_content=page_content, metadata=meta))
-
-        match_count += 1
-
-    print(f"\n[RESULT] 매칭 성공 문서 수 = {match_count}")
-    print(f"[RESULT] 스킵(미매칭/에러) 수 = {skipped_count}")
-
-else:
-    md_paths = sorted(set(md_index.values()))
-    print(f"[INFO] final_docs md files = {len(md_paths)}")
-
-    for md_path in tqdm(md_paths, desc="MD 전부 청킹"):
-        base = os.path.basename(md_path)
-
-        try:
-            with open(md_path, "r", encoding="utf-8") as f:
-                content = f.read()
-        except:
-            continue
-
-        if not content or len(content) < 50:
-            continue
-
-        header = f"""<문서 정보>
-원본문서: {base}
-</문서 정보>
-
-"""
-        base_meta = {"source": base, "source_md_path": md_path}
-
-        chunks = split_md_preserve_tables(content)
-        for page_no, chunk_text in chunks:
-            meta = dict(base_meta)
-            if page_no is not None:
-                meta["page"] = page_no
-                page_meta_count += 1
-            documents.append(Document(page_content=header + chunk_text, metadata=meta))
-
-        match_count += 1
-
-    print(f"\n[RESULT] 처리한 MD 파일 수 = {match_count}")
-
-if match_count == 0 or len(documents) == 0:
-    print("[ERROR] 처리된 문서/청크가 0개입니다.")
-    print(" - USE_CSV_METADATA=True면: CSV의 파일명과 final_docs의 md 파일명이 매칭되는지 확인하세요.")
-    print(" - USE_CSV_METADATA=False면: final_docs에 md가 있는지 확인하세요.")
-    sys.exit(1)
-
-print(f"[RESULT] 총 생성된 청크(Document) 수 = {len(documents)}")
-print(f"[RESULT] page 메타데이터 포함 청크 수 = {page_meta_count} (page marker 없는 섹션은 제외)")
-
-
-# =========================
-# 5) ChromaDB 구축/저장
-# =========================
-if REBUILD_DB and os.path.exists(DB_PATH):
-    print(f"[INFO] 기존 DB 삭제: {DB_PATH}")
+# ==========================================
+# 4. 벡터 DB 저장 (ChromaDB)
+# ==========================================
+if os.path.exists(DB_PATH):
     shutil.rmtree(DB_PATH)
 
-print("[INFO] 임베딩/ChromaDB 생성 시작...")
-embeddings = OpenAIEmbeddings(model=EMBED_MODEL)
+print(f"\n벡터 DB 저장 시작 (ChromaDB)...")
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
 
 vectorstore = Chroma.from_documents(
     documents=documents,
     embedding=embeddings,
     persist_directory=DB_PATH,
-    collection_name=COLLECTION_NAME,
+    collection_name="bid_rfp_collection"
 )
 
-print("-" * 60)
-print("[SUCCESS] ChromaDB 구축 완료")
-print(f" - 저장 위치: {DB_PATH}")
-print(f" - 컬렉션: {COLLECTION_NAME}")
-print(f" - 청크 수: {len(documents)}")
-print("-" * 60)
+print("-" * 50)
+print(f"[성공] 모든 청크에 메타데이터가 주입된 DB 구축 완료")
+print(f"저장 위치: {DB_PATH}")
+print("-" * 50)
