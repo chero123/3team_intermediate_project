@@ -58,14 +58,22 @@
 │  ├─ tts_worker.py
 │  ├─ memory_store.py
 │  └─ tts_runtime/
+│
+├─ hwp_to_pdf_to_md/
+│  ├─ hwp_to_pdf.py
+│  ├─ pdf_to_md.py
+│  └─ extract_tables_to_md.py
+│
 ├─ data/
 │  ├─ chroma_db/
 │  ├─ answer/
 │  └─ chat_log.sqlite
+│
 ├─ models/
 └─ docs/
    ├─ tts_worker.md
    └─ sqlite.md
+
 ```
 
 ## 4. 환경 준비
@@ -92,23 +100,64 @@ OPENAI_API_KEY=sk-...
 
 ## 6. 데이터 파이프라인
 
-### 6.1 원본 문서 파싱
+### 6.0 기존(.txt) 기반 파싱 방식 (Legacy)
+초기 버전에서는 PDF를 직접 `.txt` 형식으로 변환하여 사용하였습니다.
 
 ```bash
 python TextParsing/text_parshing.py
 ```
+기본 텍스트만 추출하는 .txt 기반 단순 파싱 방식
 
-### 6.2 벡터 DB 생성
+### 6.1 원본 문서 정규화 (HWP → PDF → MD)
+
+원본 데이터(HWP 96개 + PDF 4개)는 다음 순서로 정규화됩니다.
+
+① HWP → PDF 변환  
+```bash
+python hwp_to_pdf_to_md/hwp_to_pdf.py
+```
+HWP 문서를 PDF로 변환하여 입력 포맷을 통일
+
+② PDF → Markdown 추출
+```bash
+python hwp_to_pdf_to_md/pdf_to_md.py
+```
+PDF를 Markdown으로 변환
+
+페이지 시작에 다음 태그 삽입
+`<!-- page: 1 -->`
+페이지 단위 구조를 유지하여 이후 검색·근거 추적에 활용
+
+### 6.2 VLM 기반 표 추출 및 삽입
+```bash
+python extract_tables_to_md.py
+```
+VLM을 사용해 PDF 내 표를 별도 추출
+
+해당 페이지 하단에 Markdown 형태로 추가 삽입
+
+표 영역은 다음 태그로 구분
+
+`<!-- tables: start page 3 -->`
+(표 내용)
+`<!-- tables: end page 3 -->`
+삭제/교체가 아닌 추가 삽입 방식을 사용하여 원문 손실을 방지
+
+### 6.3 벡터 DB 생성
 
 ```bash
 python TextParsing/create_vectordb.py
 ```
 
 `create_vectordb.py`는 기본적으로 다음을 수행합니다.
-- 문서 로드
+- 문서로드
+- 페이지 단위 분리 후 청킹
+- 표 블록은 하나의 단위로 보호
 - RecursiveCharacterTextSplitter 기반 청킹
 - OpenAI 임베딩 생성
 - Chroma DB(`data/chroma_db`) 저장
+
+
 
 ## 7. 실행 방법
 
