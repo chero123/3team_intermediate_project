@@ -1,6 +1,6 @@
 # extract_tables_to_md_fail_safe.py
 # ============================================
-# pdf_fail/*.pdf → VLM 표 추출 → fail_docs/*.md에 페이지별 삽입
+# pdf_out/*.pdf → VLM 표 추출 → final_docs/*.md에 페이지별 삽입
 #
 # 개선:
 # - JSONDecodeError(Invalid control character) 방지/복구
