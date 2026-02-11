@@ -111,8 +111,6 @@ with st.sidebar:
     audio_placeholder = st.empty()
 
     if st.session_state.last_tts_path:
-        if st.button("다시 재생"):
-            st.session_state.last_tts_path = st.session_state.last_tts_path
         audio_placeholder.empty()
         audio_placeholder.audio(
             st.session_state.last_tts_path,
