@@ -288,6 +288,11 @@ def _select_audio_player(preferred: str | None = None) -> list[str] | None:
         if not path:
             return None
         return [path, "-autoexit", "-nodisp", "-loglevel", "error"]
+    if preferred in {"mpv"}:
+        path = shutil.which(preferred)
+        if not path:
+            return None
+        return [path, "--ao=pulse", "--no-video", "--quiet", "--keep-open=no"]
     for candidate in ("ffplay",):
         path = shutil.which(candidate)
         if not path:
@@ -320,7 +325,7 @@ while True:
         global _TTS_WORKER
         if "_TTS_WORKER" in globals() and _TTS_WORKER is not None:
             _TTS_WORKER.cancel()
-        player_cmd = _select_audio_player("ffplay")
+        player_cmd = _select_audio_player("mpv")
 
         full_response = ""
         source_documents = []
