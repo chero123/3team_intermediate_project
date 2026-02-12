@@ -57,6 +57,8 @@ CHAT_DB_PATH = os.path.join(PROJECT_ROOT, "data", "chat_log.sqlite")
 TTS_MODEL_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "melo_yae.onnx"
 TTS_BERT_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "bert_kor.onnx"
 TTS_CONFIG_PATH = Path(PROJECT_ROOT) / "models" / "melo_yae" / "config.json"
+# PDF 뷰어에서 확인할 고정 음성 예시 파일 경로
+ROOT_TTS_EXAMPLE_PATH = Path(PROJECT_ROOT) / "out.wav"
 
 # SQLite 저장소
 CHAT_STORE = SessionMemoryStore(CHAT_DB_PATH)
@@ -75,6 +77,7 @@ st.session_state.setdefault("last_q", None)
 st.session_state.setdefault("last_a", None)
 st.session_state.setdefault("last_tts_path", None)
 st.session_state.setdefault("just_answered", False)
+st.session_state.setdefault("show_tts_example", False)
 
 # ==========================================
 # 2. 사이드바 (설정)
@@ -410,6 +413,25 @@ tab1, tab2 = st.tabs(["PDF 뷰어", "채팅"])
 with tab1:
     PDF_DIR = os.path.join(PROJECT_ROOT, "data", "pdf")
     pdf_files = sorted(glob.glob(os.path.join(PDF_DIR, "*.pdf")))
+
+    # PDF 탭에서 음성 예시 노출 토글
+    col_jump, col_close = st.columns([1, 1])
+    with col_jump:
+        if st.button("🔊 음성 출력 예시 보기", key="show_tts_example_btn"):
+            st.session_state.show_tts_example = True
+    with col_close:
+        if st.session_state.show_tts_example and st.button(
+            "예시 숨기기", key="hide_tts_example_btn"
+        ):
+            st.session_state.show_tts_example = False
+
+    if st.session_state.show_tts_example:
+        st.markdown("### 음성 출력 예시")
+        if ROOT_TTS_EXAMPLE_PATH.exists():
+            st.audio(str(ROOT_TTS_EXAMPLE_PATH), format="audio/wav")
+        else:
+            st.warning(f"예시 파일이 없습니다: {ROOT_TTS_EXAMPLE_PATH}")
+        st.divider()
 
     if not pdf_files:
         st.warning(f"PDF 파일이 없습니다: {PDF_DIR}")
