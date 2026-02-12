@@ -8,6 +8,8 @@ import uuid
 import sys
 import os
 import time
+import glob
+import fitz  # pymupdf
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.retrievers import BM25Retriever
@@ -15,7 +17,11 @@ from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnablePassthrough, RunnableParallel, RunnableLambda
+from langchain_core.runnables import (
+    RunnablePassthrough,
+    RunnableParallel,
+    RunnableLambda,
+)
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -46,17 +52,9 @@ CHAT_STORE = SessionMemoryStore(CHAT_DB_PATH)
 # ==========================================
 # 1. 화면 기본 설정
 # ==========================================
-st.set_page_config(
-    page_title="입찰메이트 AI (Hybrid)",
-    page_icon="🤖",
-    layout="wide"
-)
+st.set_page_config(page_title="입찰메이트 AI (Hybrid)", page_icon="🤖", layout="wide")
 
 st.title("입찰/공고 분석 AI: 입찰메이트 (Hybrid Edition)")
-st.markdown("""
-- **Dense(의미)**: 문맥과 의미를 파악하여 검색 (Chroma)
-- **Sparse(키워드)**: 공고 번호, 예산, 모델명 등 정확한 매칭 검색 (BM25)
-""")
 
 # 세션 상태 기본값을 먼저 초기화한다. (사이드바/메인 공용)
 st.session_state.setdefault("messages", [])
@@ -71,26 +69,29 @@ st.session_state.setdefault("just_answered", False)
 # ==========================================
 with st.sidebar:
     st.header("⚙️ 환경 설정")
-    
+
     if "OPENAI_API_KEY" not in os.environ:
         api_key = st.text_input("OpenAI API Key 입력", type="password")
         if api_key:
             os.environ["OPENAI_API_KEY"] = api_key
             st.success("API Key 저장 완료!")
-    
+
     st.subheader("모델 선택")
     model_options = ["gpt-5-mini", "gpt-5-nano", "gpt-5"]
-    selected_model = st.selectbox(
-        "사용할 모델", 
-        model_options, 
-        index=0
-    )
+    selected_model = st.selectbox("사용할 모델", model_options, index=0)
 
     st.subheader("검색 가중치 설정")
-    dense_weight = st.slider("Dense(의미) 비중", 0.0, 1.0, 0.6, 0.1, help="높을수록 문맥 위주, 낮을수록 키워드 위주")
+    dense_weight = st.slider(
+        "Dense(의미) 비중",
+        0.0,
+        1.0,
+        0.6,
+        0.1,
+        help="높을수록 문맥 위주, 낮을수록 키워드 위주",
+    )
     sparse_weight = round(1.0 - dense_weight, 1)
     st.caption(f"Sparse(키워드) 비중: {sparse_weight}")
-    
+
     if st.button("🗑️ 대화 내용 지우기"):
         st.session_state.messages = []
         st.rerun()
@@ -112,7 +113,11 @@ with st.sidebar:
 
     st.divider()
     st.subheader("피드백")
-    if st.session_state.last_answer_ready and st.session_state.last_q and st.session_state.last_a:
+    if (
+        st.session_state.last_answer_ready
+        and st.session_state.last_q
+        and st.session_state.last_a
+    ):
         col_like, col_dislike = st.columns(2)
         with col_like:
             if st.button("👍 좋아요"):
@@ -133,58 +138,61 @@ with st.sidebar:
     else:
         st.caption("답변이 생성된 후 피드백을 남길 수 있습니다.")
 
+
 # ==========================================
 # 3. RAG 체인 설정 (Hybrid & LCEL Fix)
 # ==========================================
 @st.cache_resource(show_spinner="Hybrid 검색 엔진 가동 중...")
 def load_rag_chain(model_name, dense_w, sparse_w):
-    
+
     if not os.path.exists(DB_PATH):
         st.error(f"데이터베이스 없음: {DB_PATH}")
         return None
 
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    
+
     # 1. Dense Retriever (Chroma)
     vectorstore = Chroma(
         persist_directory=DB_PATH,
         embedding_function=embeddings,
-        collection_name="bid_rfp_collection"
+        collection_name="bid_rfp_collection",
     )
-    
+
     dense_retriever = vectorstore.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": 5, "fetch_k": 20}
+        search_type="mmr", search_kwargs={"k": 5, "fetch_k": 20}
     )
-    
+
     # 2. Sparse Retriever (BM25)
     try:
         raw_docs = vectorstore.get()
         docs = []
-        for i in range(len(raw_docs['ids'])):
-            if raw_docs['documents'][i]:
-                docs.append(Document(
-                    page_content=raw_docs['documents'][i],
-                    metadata=raw_docs['metadatas'][i] if raw_docs['metadatas'] else {}
-                ))
-        
+        for i in range(len(raw_docs["ids"])):
+            if raw_docs["documents"][i]:
+                docs.append(
+                    Document(
+                        page_content=raw_docs["documents"][i],
+                        metadata=(
+                            raw_docs["metadatas"][i] if raw_docs["metadatas"] else {}
+                        ),
+                    )
+                )
+
         if not docs:
             st.error("DB에 문서가 없습니다.")
             return None
-            
+
         sparse_retriever = BM25Retriever.from_documents(docs)
         sparse_retriever.k = 5
-        
+
     except Exception as e:
         st.error(f"BM25 초기화 실패: {e}")
         return None
 
     # 3. Ensemble Retriever (Hybrid)
     ensemble_retriever = EnsembleRetriever(
-        retrievers=[dense_retriever, sparse_retriever],
-        weights=[dense_w, sparse_w]
+        retrievers=[dense_retriever, sparse_retriever], weights=[dense_w, sparse_w]
     )
-    
+
     try:
         llm = ChatOpenAI(model=model_name, temperature=0)
     except Exception as e:
@@ -196,12 +204,14 @@ def load_rag_chain(model_name, dense_w, sparse_w):
     채팅 기록과 최신 질문이 주어지면, 채팅 기록 없이도 이해할 수 있는 
     '독립적인 질문'으로 재구성하세요. 답변하지 말고 질문만 반환하세요.
     """
-    context_q_prompt = ChatPromptTemplate.from_messages([
-        ("system", context_q_system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ])
-    
+    context_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", context_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+
     # Chain: (Dict) -> (String)
     history_aware_chain = context_q_prompt | llm | StrOutputParser()
 
@@ -235,12 +245,14 @@ def load_rag_chain(model_name, dense_w, sparse_w):
     [검색된 문서]:
     {context}
     """
-    qa_prompt = ChatPromptTemplate.from_messages([
-        ("system", qa_system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ])
-    
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", qa_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+
     # 검색 쿼리 결정 함수
     def get_search_query(input_dict):
         if input_dict.get("chat_history"):
@@ -262,18 +274,17 @@ def load_rag_chain(model_name, dense_w, sparse_w):
             "chat_history": lambda x: x["chat_history"],
         }
     )
-    
+
     # 최종 체인
     rag_chain = setup_and_retrieval.assign(
-        answer=RunnablePassthrough.assign(
-            context=lambda x: format_docs(x["context"])
-        )
+        answer=RunnablePassthrough.assign(context=lambda x: format_docs(x["context"]))
         | qa_prompt
         | llm
         | StrOutputParser()
     )
-    
+
     return rag_chain
+
 
 # ==========================================
 # 4. TTS 유틸리티 함수
@@ -355,6 +366,7 @@ def _sanitize_answer(text: str) -> str:
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
+
 def _select_audio_player(preferred: str | None = None) -> list[str] | None:
     if preferred in {"none", "off"}:
         return None
@@ -370,136 +382,242 @@ def _select_audio_player(preferred: str | None = None) -> list[str] | None:
         return [path, "-autoexit", "-nodisp", "-loglevel", "error"]
     return None
 
+
 # ==========================================
-# 5. 채팅 인터페이스
+# 5. 탭 인터페이스
 # ==========================================
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "last_answer_ready" not in st.session_state:
-    st.session_state.last_answer_ready = False
-if "last_q" not in st.session_state:
-    st.session_state.last_q = None
-if "last_a" not in st.session_state:
-    st.session_state.last_a = None
+tab1, tab2 = st.tabs(["PDF 뷰어", "채팅"])
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# ------------------------------------------
+# Tab 1: PDF 뷰어
+# ------------------------------------------
+with tab1:
+    PDF_DIR = os.path.join(PROJECT_ROOT, "data", "pdf")
+    pdf_files = sorted(glob.glob(os.path.join(PDF_DIR, "*.pdf")))
 
-if query := st.chat_input("질문을 입력하세요..."):
-    
-    if "OPENAI_API_KEY" not in os.environ:
-        st.warning("API Key가 필요합니다.")
-        st.stop()
+    if not pdf_files:
+        st.warning(f"PDF 파일이 없습니다: {PDF_DIR}")
+    else:
+        for pdf_path in pdf_files:
+            pdf_name = os.path.basename(pdf_path)
+            st.subheader(pdf_name)
 
-    st.session_state.messages.append({"role": "user", "content": query})
-    st.session_state.last_answer_ready = False
-    st.session_state.last_q = None
-    st.session_state.last_a = None
-    with st.chat_message("user"):
-        st.markdown(query)
+            doc = fitz.open(pdf_path)
+            total_pages = len(doc)
 
-    with st.chat_message("assistant"):
-        chain = load_rag_chain(selected_model, dense_weight, sparse_weight)
-        
-        if chain:
-            history_langchain = []
-            for msg in st.session_state.messages[:-1]:
-                if msg["role"] == "user":
-                    history_langchain.append(HumanMessage(content=msg["content"]))
-                else:
-                    history_langchain.append(AIMessage(content=msg["content"]))
+            page_key = f"page_{pdf_name}"
+            slider_key = f"slider_{pdf_name}"
+            st.session_state.setdefault(page_key, 1)
 
-            message_placeholder = st.empty()
-            full_response = ""
-            source_docs = []
+            def _on_slider_change(_pk=page_key, _sk=slider_key):
+                st.session_state[_pk] = st.session_state[_sk]
 
-            try:
-                player_cmd = _select_audio_player("ffplay")
+            def _go_prev(_pk=page_key, _sk=slider_key):
+                if st.session_state[_pk] > 1:
+                    st.session_state[_pk] -= 1
+                    st.session_state[_sk] = st.session_state[_pk]
 
+            def _go_next(_pk=page_key, _sk=slider_key, _tp=total_pages):
+                if st.session_state[_pk] < _tp:
+                    st.session_state[_pk] += 1
+                    st.session_state[_sk] = st.session_state[_pk]
+
+            col_left, col_info, col_right = st.columns([1, 3, 1])
+            with col_left:
+                st.button("◀ 이전", key=f"prev_{pdf_name}", on_click=_go_prev)
+            with col_info:
+                st.markdown(f"**{st.session_state[page_key]} / {total_pages} 페이지**")
+            with col_right:
+                st.button("다음 ▶", key=f"next_{pdf_name}", on_click=_go_next)
+
+            st.slider(
+                "페이지 이동",
+                1,
+                total_pages,
+                st.session_state[page_key],
+                key=slider_key,
+                on_change=_on_slider_change,
+            )
+
+            page_num = st.session_state[page_key] - 1
+            page = doc[page_num]
+            pix = page.get_pixmap(dpi=150)
+            img_bytes = pix.tobytes("png")
+
+            st.image(img_bytes, use_container_width=True)
+            doc.close()
+            st.divider()
+
+    # 키보드 좌/우 화살표로 페이지 넘기기
+    st.components.v1.html(
+        """
+    <script>
+    const doc = window.parent.document;
+    doc.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowLeft') {
+            const btn = doc.querySelectorAll('button');
+            for (const b of btn) {
+                if (b.innerText.includes('이전')) { b.click(); break; }
+            }
+        } else if (e.key === 'ArrowRight') {
+            const btn = doc.querySelectorAll('button');
+            for (const b of btn) {
+                if (b.innerText.includes('다음')) { b.click(); break; }
+            }
+        }
+    });
+    </script>
+    """,
+        height=0,
+    )
+
+# ------------------------------------------
+# Tab 2: 채팅
+# ------------------------------------------
+with tab2:
+    st.markdown(
+        """
+- **Dense(의미)**: 문맥과 의미를 파악하여 검색 (Chroma)
+- **Sparse(키워드)**: 공고 번호, 예산, 모델명 등 정확한 매칭 검색 (BM25)
+"""
+    )
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "last_answer_ready" not in st.session_state:
+        st.session_state.last_answer_ready = False
+    if "last_q" not in st.session_state:
+        st.session_state.last_q = None
+    if "last_a" not in st.session_state:
+        st.session_state.last_a = None
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if query := st.chat_input("질문을 입력하세요..."):
+
+        if "OPENAI_API_KEY" not in os.environ:
+            st.warning("API Key가 필요합니다.")
+            st.stop()
+
+        st.session_state.messages.append({"role": "user", "content": query})
+        st.session_state.last_answer_ready = False
+        st.session_state.last_q = None
+        st.session_state.last_a = None
+        with st.chat_message("user"):
+            st.markdown(query)
+
+        with st.chat_message("assistant"):
+            chain = load_rag_chain(selected_model, dense_weight, sparse_weight)
+
+            if chain:
+                history_langchain = []
+                for msg in st.session_state.messages[:-1]:
+                    if msg["role"] == "user":
+                        history_langchain.append(HumanMessage(content=msg["content"]))
+                    else:
+                        history_langchain.append(AIMessage(content=msg["content"]))
+
+                message_placeholder = st.empty()
                 full_response = ""
-                source_documents = []
-                tts_buffer = ""
-                out_dir = os.path.join(PROJECT_ROOT, "data", "answer")
-                os.makedirs(out_dir, exist_ok=True)
+                source_docs = []
 
-                # 새 질문이 들어오면 기존 TTS 재생을 중단하고 큐를 비운다.
-                if _TTS_WORKER is not None:
-                    _TTS_WORKER.cancel()
+                try:
+                    player_cmd = _select_audio_player("ffplay")
 
-                tts_worker = TTSWorker(
-                    model_path=TTS_MODEL_PATH,
-                    bert_path=TTS_BERT_PATH,
-                    config_path=TTS_CONFIG_PATH,
-                    out_dir=out_dir,
-                    device="cpu",
-                    player_cmd=player_cmd,
-                    sanitize_fn=_sanitize_answer,
-                    split_fn=_split_sentences_for_tts,
-                )
-                tts_worker.start()
-                _TTS_WORKER = tts_worker
+                    full_response = ""
+                    source_documents = []
+                    tts_buffer = ""
+                    out_dir = os.path.join(PROJECT_ROOT, "data", "answer")
+                    os.makedirs(out_dir, exist_ok=True)
 
-                for chunk in chain.stream({"input": query, "chat_history": history_langchain}):
-                    if "answer" in chunk:
-                        text = chunk["answer"]
-                        full_response += text
-                        tts_buffer += text
+                    # 새 질문이 들어오면 기존 TTS 재생을 중단하고 큐를 비운다.
+                    if _TTS_WORKER is not None:
+                        _TTS_WORKER.cancel()
 
-                        sentences, tts_buffer = split_sentences_buffered(tts_buffer)
+                    tts_worker = TTSWorker(
+                        model_path=TTS_MODEL_PATH,
+                        bert_path=TTS_BERT_PATH,
+                        config_path=TTS_CONFIG_PATH,
+                        out_dir=out_dir,
+                        device="cpu",
+                        player_cmd=player_cmd,
+                        sanitize_fn=_sanitize_answer,
+                        split_fn=_split_sentences_for_tts,
+                    )
+                    tts_worker.start()
+                    _TTS_WORKER = tts_worker
+
+                    for chunk in chain.stream(
+                        {"input": query, "chat_history": history_langchain}
+                    ):
+                        if "answer" in chunk:
+                            text = chunk["answer"]
+                            full_response += text
+                            tts_buffer += text
+
+                            sentences, tts_buffer = split_sentences_buffered(tts_buffer)
+                            for sent in sentences:
+                                tts_worker.enqueue(sent)
+                            message_placeholder.markdown(full_response + "▌")
+
+                        if "context" in chunk:
+                            source_docs = chunk["context"]
+
+                    if tts_buffer.strip():
+                        sentences, remainder = split_sentences_buffered(
+                            tts_buffer.strip()
+                        )
                         for sent in sentences:
                             tts_worker.enqueue(sent)
-                        message_placeholder.markdown(full_response + "▌")
-                    
-                    if "context" in chunk:
-                        source_docs = chunk["context"]
-                
-                if tts_buffer.strip():
-                    sentences, remainder = split_sentences_buffered(tts_buffer.strip())
-                    for sent in sentences:
-                        tts_worker.enqueue(sent)
-                    if remainder:
-                        tts_worker.enqueue(remainder)
+                        if remainder:
+                            tts_worker.enqueue(remainder)
 
-                tts_worker.close()
-                last_path = tts_worker.last_path()
-                if last_path:
-                    st.session_state.last_tts_path = last_path
-                    audio_placeholder.empty()
-                    audio_placeholder.audio(
-                        st.session_state.last_tts_path,
-                        format="audio/wav",
+                    tts_worker.close()
+                    last_path = tts_worker.last_path()
+                    if last_path:
+                        st.session_state.last_tts_path = last_path
+                        audio_placeholder.empty()
+                        audio_placeholder.audio(
+                            st.session_state.last_tts_path,
+                            format="audio/wav",
+                        )
+
+                    message_placeholder.markdown(full_response)
+
+                    # 질문/답변 저장 (rating은 NULL)
+                    CHAT_STORE.save_turn(query, full_response)
+                    st.session_state.last_answer_ready = True
+                    st.session_state.last_q = query
+                    st.session_state.last_a = full_response
+                    st.session_state.just_answered = True
+
+                    if source_docs:
+                        with st.expander("📚 참고 문서 확인하기 (Hybrid 검색)"):
+                            seen = set()
+                            for i, doc in enumerate(source_docs):
+                                source = os.path.basename(
+                                    doc.metadata.get("source", "Unknown")
+                                )
+                                page = doc.metadata.get("page", 0)
+                                preview = doc.page_content[:40].replace("\n", " ")
+
+                                key = f"{source}p{page}"
+                                if key not in seen:
+                                    st.markdown(f"**{i+1}. {source}** (Page {page+1})")
+                                    st.caption(f"내용: {preview}...")
+                                    seen.add(key)
+
+                    st.session_state.messages.append(
+                        {"role": "assistant", "content": full_response}
                     )
 
-                message_placeholder.markdown(full_response)
+                except Exception as e:
+                    st.error(f"에러 발생: {e}")
 
-                # 질문/답변 저장 (rating은 NULL)
-                CHAT_STORE.save_turn(query, full_response)
-                st.session_state.last_answer_ready = True
-                st.session_state.last_q = query
-                st.session_state.last_a = full_response
-                st.session_state.just_answered = True
-                
-                if source_docs:
-                    with st.expander("📚 참고 문서 확인하기 (Hybrid 검색)"):
-                        seen = set()
-                        for i, doc in enumerate(source_docs):
-                            source = os.path.basename(doc.metadata.get("source", "Unknown"))
-                            page = doc.metadata.get("page", 0)
-                            preview = doc.page_content[:40].replace("\n", " ")
-                            
-                            key = f"{source}p{page}"
-                            if key not in seen:
-                                st.markdown(f"**{i+1}. {source}** (Page {page+1})")
-                                st.caption(f"내용: {preview}...")
-                                seen.add(key)
-
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-
-            except Exception as e:
-                st.error(f"에러 발생: {e}")
-
-    if st.session_state.just_answered:
-        st.session_state.just_answered = False
-        st.rerun()
+        if st.session_state.just_answered:
+            st.session_state.just_answered = False
+            st.rerun()
