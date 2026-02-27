@@ -6,6 +6,7 @@
 ## 0. 개인 로그
 
 - [안호성](https://hobi2k.github.io/category/Intermediate_RAG/)
+- [김나연](https://github.com/chero123/3team_intermediate_project/tree/kim-nayeon/logs)
 
 ## 1. 핵심 기능
 
