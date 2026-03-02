@@ -7,6 +7,7 @@
 
 - [안호성](https://hobi2k.github.io/category/Intermediate_RAG/)
 - [김나연](https://github.com/chero123/3team_intermediate_project/tree/kim-nayeon/logs)
+- [장우정](https://www.notion.so/AI-6-3-3142cc364d7180219366eeca70258c4b?source=copy_link)
 
 ## 1. 핵심 기능
 
