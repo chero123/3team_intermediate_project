@@ -71,6 +71,8 @@
 │  └─ extract_tables_to_md.py
 │
 ├─ data/
+│  ├─ pdf
+│  │  └─ 20260227_AI6기3팀.pdf
 │  ├─ chroma_db/
 │  ├─ answer/
 │  └─ chat_log.sqlite
@@ -241,3 +243,7 @@ python streamlit run TextParsing/app.py
 
 `ffplay`/`mpv`/PulseAudio 또는 PipeWire 환경에 따라 로그 경고가 출력될 수 있습니다.
 필요 시 시스템 오디오 스택 설정을 확인하세요.
+
+
+## 13. 보고서 자료
+[data/pdf/20260227_AI6팀3팀.pdf](https://github.com/chero123/3team_intermediate_project/blob/main/data/pdf/20260227_AI6%EA%B8%B03%ED%8C%80.pdf)
